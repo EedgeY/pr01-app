@@ -1,0 +1,66 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "tui",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"],
+      "env": [
+        "TURSO_DATABASE_URL",
+        "TURSO_AUTH_TOKEN",
+        "AUTH_SECRET",
+        "OAUTH_GOOGLE_CLIENT_ID",
+        "OAUTH_GOOGLE_CLIENT_SECRET",
+        "OAUTH_GITHUB_CLIENT_ID",
+        "OAUTH_GITHUB_CLIENT_SECRET",
+        "STRIPE_SECRET_KEY",
+        "STRIPE_WEBHOOK_SECRET"
+      ]
+    },
+    "lint": {
+      "dependsOn": ["^lint"],
+      "outputs": []
+    },
+    "check-types": {
+      "dependsOn": ["^check-types"],
+      "outputs": []
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true,
+      "env": [
+        "TURSO_DATABASE_URL",
+        "TURSO_AUTH_TOKEN",
+        "AUTH_SECRET",
+        "OAUTH_GOOGLE_CLIENT_ID",
+        "OAUTH_GOOGLE_CLIENT_SECRET",
+        "OAUTH_GITHUB_CLIENT_ID",
+        "OAUTH_GITHUB_CLIENT_SECRET",
+        "STRIPE_SECRET_KEY",
+        "STRIPE_WEBHOOK_SECRET"
+      ]
+    },
+    "db:generate": {
+      "cache": false,
+      "env": ["TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN"]
+    },
+    "db:migrate": {
+      "cache": false,
+      "env": ["TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN"]
+    },
+    "db:push": {
+      "cache": false,
+      "env": ["TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN"]
+    },
+    "db:studio": {
+      "cache": false,
+      "persistent": true,
+      "env": ["TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN"]
+    }
+  }
+}
