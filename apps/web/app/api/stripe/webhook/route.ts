@@ -8,7 +8,7 @@ import {
   subscriptions,
   payments,
 } from '@workspace/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and } from '@workspace/db';
 import type Stripe from 'stripe';
 
 export async function POST(request: NextRequest) {

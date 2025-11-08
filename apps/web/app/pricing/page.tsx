@@ -1,6 +1,6 @@
 import { db } from '@workspace/db/client';
 import { prices, products } from '@workspace/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and } from '@workspace/db';
 import { PricingClient } from './_components/pricing-client';
 
 function getDefaultFeatures(interval: string | null): string[] {

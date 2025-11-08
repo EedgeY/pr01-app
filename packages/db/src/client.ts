@@ -1,9 +1,10 @@
-import { createClient } from "@libsql/client";
-import { drizzle } from "drizzle-orm/libsql";
-import * as schema from "./schema";
+import 'server-only';
+import { createClient } from '@libsql/client';
+import { drizzle } from 'drizzle-orm/libsql';
+import * as schema from './schema';
 
 if (!process.env.TURSO_DATABASE_URL) {
-  throw new Error("TURSO_DATABASE_URL is not set");
+  throw new Error('TURSO_DATABASE_URL is not set');
 }
 
 const client = createClient({
@@ -12,4 +13,3 @@ const client = createClient({
 });
 
 export const db = drizzle(client, { schema });
-

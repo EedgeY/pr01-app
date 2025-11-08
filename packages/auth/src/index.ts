@@ -58,3 +58,6 @@ export const auth = betterAuth({
 });
 
 export type Session = typeof auth.$Infer.Session;
+
+// better-auth/next-jsからの再エクスポート
+export { toNextJsHandler } from 'better-auth/next-js';

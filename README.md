@@ -13,6 +13,7 @@ Turborepo + Next.js(App Router) + Turso + Drizzle + Better Auth + Stripe のモ�
 - 💳 **Stripe**: サブスクリプション + 都度課金
 - 🎨 **shadcn/ui**: モダンなUIコンポーネント
 - 📦 **pnpm**: 高速で効率的なパッケージ管理
+- 🤖 **AI執筆支援**: Mastra.ai + OpenRouter経由のLLMで記事戦略策定と本文生成
 
 ## プロジェクト構成
 
@@ -24,6 +25,7 @@ template-turso-mono/
 │   ├── db/               # Turso + Drizzle（スキーマ、マイグレーション）
 │   ├── auth/             # Better Auth設定
 │   ├── stripe/           # Stripe決済ロジック
+│   ├── ai/               # Mastraエージェント、ツール、OpenRouterクライアント
 │   ├── ui/               # 共有UIコンポーネント（shadcn/ui）
 │   ├── eslint-config/    # 共有ESLint設定
 │   └── typescript-config/# 共有TypeScript設定
@@ -90,6 +92,11 @@ cp packages/db/.env.example packages/db/.env.local
 **OAuth（オプション）:**
 - `OAUTH_GOOGLE_CLIENT_ID` / `OAUTH_GOOGLE_CLIENT_SECRET`
 - `OAUTH_GITHUB_CLIENT_ID` / `OAUTH_GITHUB_CLIENT_SECRET`
+
+**AI執筆支援（オプション）:**
+- `OPENROUTER_API_KEY`: OpenRouterのAPIキー（[OpenRouter](https://openrouter.ai/)で取得）
+- `OPENROUTER_BASE_URL`: OpenRouterのベースURL（デフォルト: `https://openrouter.ai/api/v1`）
+- `APP_URL`: アプリケーションのURL（OpenRouterのメタデータ用、任意）
 
 ### 4. データベースマイグレーション
 
@@ -249,6 +256,42 @@ const response = await fetch("/api/stripe/portal", { method: "POST" });
 const { url } = await response.json();
 window.location.href = url;
 ```
+
+### AI執筆支援
+
+記事執筆ワークフローは `/articles/new` でアクセスできます。
+
+**機能:**
+1. **戦略策定**: テーマを入力すると、AIが読者ペルソナ、競合分析、独自性（USP）、記事構成案を自動生成
+2. **対話的レビュー**: 生成された戦略をレビューし、フィードバックで修正可能
+3. **セクション生成**: 構成案に基づき、各セクションの本文を順次生成
+4. **完成**: 全セクション生成後、記事を完成させてデータベースに保存
+
+**Server Actionsの使用例:**
+
+```typescript
+import {
+  planArticleStrategy,
+  generateSection,
+  finalizeArticle,
+} from "@/app/actions/article";
+
+// 戦略策定
+const result = await planArticleStrategy("Next.js App Routerの使い方");
+// => { success: true, draftId: "xxx", strategy: {...} }
+
+// セクション生成
+const section = await generateSection(draftId, 0);
+// => { success: true, section: { heading: "...", body: "..." } }
+
+// 完成
+await finalizeArticle(draftId);
+```
+
+**カスタマイズ:**
+- エージェントのプロンプトは `packages/ai/src/agents/` で編集可能
+- 使用モデルは `packages/ai/src/clients/openrouter.ts` の `defaultModel` で変更可能
+- ツール（Web検索、スクレイプ、ベクトル検索）は `packages/ai/src/tools/` で実装
 
 ## デプロイ
 

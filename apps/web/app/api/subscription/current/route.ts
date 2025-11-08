@@ -3,7 +3,7 @@ import { headers } from 'next/headers';
 import { auth } from '@workspace/auth';
 import { db } from '@workspace/db/client';
 import { subscriptions, prices } from '@workspace/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and } from '@workspace/db';
 
 export async function GET() {
   try {

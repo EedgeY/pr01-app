@@ -1,5 +1,4 @@
-import { auth } from "@workspace/auth";
-import { toNextJsHandler } from "better-auth/next-js";
+import { auth, toNextJsHandler } from "@workspace/auth";
 
 export const { GET, POST } = toNextJsHandler(auth);
 

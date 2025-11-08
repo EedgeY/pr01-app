@@ -4,7 +4,7 @@ import { getS3Client, buildAvatarKey } from '@/lib/r2';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { db } from '@workspace/db/client';
 import { user } from '@workspace/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq } from '@workspace/db';
 
 export const runtime = 'nodejs';
 

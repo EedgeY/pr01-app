@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: [
+    '@workspace/ai',
     '@workspace/ui',
     '@workspace/auth',
     '@workspace/db',
@@ -8,6 +9,9 @@ const nextConfig = {
   ],
   images: {
     domains: ['localhost', 'lh3.googleusercontent.com'],
+  },
+  experimental: {
+    optimizePackageImports: ['tldraw'],
   },
 };
 

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@workspace/auth';
 import { db } from '@workspace/db/client';
 import { user } from '@workspace/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq } from '@workspace/db';
 
 export const runtime = 'nodejs';
 

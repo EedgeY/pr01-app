@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./schema": "./src/schema.ts",
-    "./client": "./src/client.ts"
+    "./client": "./src/client.ts",
+    "./types": "./src/types.ts"
   },
   "scripts": {
     "db:generate": "drizzle-kit generate",
@@ -15,9 +16,10 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "@libsql/client": "^0.14.0",
+    "@libsql/client": "^0.10.0",
     "dotenv": "^17.2.3",
-    "drizzle-orm": "^0.44.7"
+    "drizzle-orm": "^0.44.7",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@types/node": "^20.19.9",

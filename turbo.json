@@ -15,7 +15,10 @@
         "OAUTH_GITHUB_CLIENT_ID",
         "OAUTH_GITHUB_CLIENT_SECRET",
         "STRIPE_SECRET_KEY",
-        "STRIPE_WEBHOOK_SECRET"
+        "STRIPE_WEBHOOK_SECRET",
+        "OPENROUTER_API_KEY",
+        "OPENROUTER_BASE_URL",
+        "APP_URL"
       ]
     },
     "lint": {
@@ -42,7 +45,10 @@
         "OAUTH_GITHUB_CLIENT_ID",
         "OAUTH_GITHUB_CLIENT_SECRET",
         "STRIPE_SECRET_KEY",
-        "STRIPE_WEBHOOK_SECRET"
+        "STRIPE_WEBHOOK_SECRET",
+        "OPENROUTER_API_KEY",
+        "OPENROUTER_BASE_URL",
+        "APP_URL"
       ]
     },
     "db:generate": {

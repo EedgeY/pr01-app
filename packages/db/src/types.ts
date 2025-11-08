@@ -1,0 +1,20 @@
+// 型のみをエクスポート（クライアントサイドでも安全）
+export type {
+  User,
+  NewUser,
+  Session,
+  Account,
+  Verification,
+  Product,
+  Price,
+  Subscription,
+  Payment,
+  Project,
+  NewProject,
+  Design,
+  NewDesign,
+  Asset,
+  NewAsset,
+  Message,
+  NewMessage,
+} from './schema';

@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { sql, relations } from 'drizzle-orm';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 // Better Auth用のユーザーテーブル
@@ -182,6 +182,109 @@ export const payments = sqliteTable('payments', {
     .default(sql`(unixepoch())`),
 });
 
+// プロジェクトテーブル（ロゴ・ブランドのバリエーション管理）
+export const projects = sqliteTable('projects', {
+  id: text('id').primaryKey(),
+  ownerId: text('ownerId')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  visibility: text('visibility', { enum: ['private', 'public'] })
+    .notNull()
+    .default('private'),
+  createdAt: integer('createdAt', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  updatedAt: integer('updatedAt', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
+// デザインテーブル（tldrawドキュメント）
+export const designs = sqliteTable('designs', {
+  id: text('id').primaryKey(),
+  projectId: text('projectId')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  doc: text('doc', { mode: 'json' }).notNull(), // tldrawのStoreSnapshot
+  thumbnailKey: text('thumbnailKey'), // R2のキー
+  createdAt: integer('createdAt', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  updatedAt: integer('updatedAt', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
+// アセットテーブル（画像・エクスポートファイル）
+export const assets = sqliteTable('assets', {
+  id: text('id').primaryKey(),
+  projectId: text('projectId')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  designId: text('designId').references(() => designs.id, {
+    onDelete: 'cascade',
+  }),
+  key: text('key').notNull(), // R2のキー
+  type: text('type', { enum: ['image', 'export'] }).notNull(),
+  width: integer('width'),
+  height: integer('height'),
+  size: integer('size'), // バイト数
+  contentType: text('contentType').notNull(),
+  createdAt: integer('createdAt', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
+// メッセージテーブル（チャット履歴）
+export const messages = sqliteTable('messages', {
+  id: text('id').primaryKey(),
+  designId: text('designId')
+    .notNull()
+    .references(() => designs.id, { onDelete: 'cascade' }),
+  userId: text('userId')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  role: text('role', { enum: ['user', 'system'] }).notNull(),
+  content: text('content').notNull(),
+  selectionIds: text('selectionIds', { mode: 'json' }), // 選択されていたshape IDの配列
+  createdAt: integer('createdAt', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
+// 記事テーブル（note執筆ワークフロー用）
+export const articles = sqliteTable('articles', {
+  id: text('id').primaryKey(),
+  authorId: text('authorId').references(() => user.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  status: text('status', {
+    enum: ['planning', 'draft', 'published'],
+  })
+    .notNull()
+    .default('planning'),
+  // 戦略メモ（ペルソナ、競合、USP、構成案）
+  strategyMemo: text('strategyMemo', { mode: 'json' }).$type<{
+    persona?: string;
+    competitors?: Array<{ title: string; url: string; summary?: string }>;
+    usp?: string;
+    outline?: string[];
+  }>(),
+  // セクション（見出しと本文のペア）
+  sections: text('sections', { mode: 'json' }).$type<
+    Array<{ heading: string; body: string }>
+  >(),
+  // ワークフロー状態（useworkflowの進行状態）
+  workflowState: text('workflowState', { mode: 'json' }),
+  createdAt: integer('createdAt', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  updatedAt: integer('updatedAt', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
 // 型エクスポート
 export type User = typeof user.$inferSelect;
 export type NewUser = typeof user.$inferInsert;
@@ -192,3 +295,61 @@ export type Product = typeof products.$inferSelect;
 export type Price = typeof prices.$inferSelect;
 export type Subscription = typeof subscriptions.$inferSelect;
 export type Payment = typeof payments.$inferSelect;
+export type Project = typeof projects.$inferSelect;
+export type NewProject = typeof projects.$inferInsert;
+export type Design = typeof designs.$inferSelect;
+export type NewDesign = typeof designs.$inferInsert;
+export type Asset = typeof assets.$inferSelect;
+export type NewAsset = typeof assets.$inferInsert;
+export type Message = typeof messages.$inferSelect;
+export type NewMessage = typeof messages.$inferInsert;
+export type Article = typeof articles.$inferSelect;
+export type NewArticle = typeof articles.$inferInsert;
+
+// リレーション定義
+export const projectsRelations = relations(projects, ({ one, many }) => ({
+  owner: one(user, {
+    fields: [projects.ownerId],
+    references: [user.id],
+  }),
+  designs: many(designs),
+  assets: many(assets),
+}));
+
+export const designsRelations = relations(designs, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [designs.projectId],
+    references: [projects.id],
+  }),
+  messages: many(messages),
+  assets: many(assets),
+}));
+
+export const messagesRelations = relations(messages, ({ one }) => ({
+  design: one(designs, {
+    fields: [messages.designId],
+    references: [designs.id],
+  }),
+  user: one(user, {
+    fields: [messages.userId],
+    references: [user.id],
+  }),
+}));
+
+export const assetsRelations = relations(assets, ({ one }) => ({
+  project: one(projects, {
+    fields: [assets.projectId],
+    references: [projects.id],
+  }),
+  design: one(designs, {
+    fields: [assets.designId],
+    references: [designs.id],
+  }),
+}));
+
+export const articlesRelations = relations(articles, ({ one }) => ({
+  author: one(user, {
+    fields: [articles.authorId],
+    references: [user.id],
+  }),
+}));
