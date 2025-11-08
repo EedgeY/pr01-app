@@ -3,7 +3,15 @@
 import { db } from '@workspace/db/client';
 import { articles } from '@workspace/db/schema';
 import { eq } from '@workspace/db';
-import { articleStrategyAgent, articleDraftAgent, openai, defaultModel, withRetry } from '@workspace/ai';
+import {
+  articleStrategyAgent,
+  articleDraftAgent,
+  openai,
+  defaultModel,
+  withRetry,
+  generateNoteArticle,
+} from '@workspace/ai';
+import type { GenerateNoteArticleOptions } from '@workspace/ai';
 import { auth } from '@workspace/auth';
 import { headers } from 'next/headers';
 import { nanoid } from 'nanoid';
@@ -65,7 +73,7 @@ export async function planArticleStrategy(theme: string) {
     });
 
     // DBに保存
-    const [draft] = await db
+    const result = await db
       .insert(articles)
       .values({
         id: nanoid(),
@@ -73,10 +81,15 @@ export async function planArticleStrategy(theme: string) {
         title: theme,
         status: 'planning',
         strategyMemo: strategyResult,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
       })
       .returning();
+
+    const draft = result[0];
+    if (!draft) {
+      throw new Error('Failed to create article');
+    }
 
     return {
       success: true,
@@ -156,7 +169,7 @@ ${feedback}
       .update(articles)
       .set({
         strategyMemo: refinedStrategy,
-        updatedAt: Date.now(),
+        updatedAt: new Date(),
       })
       .where(eq(articles.id, draftId));
 
@@ -255,7 +268,7 @@ ${customPrompt ? `追加の指示: ${customPrompt}` : ''}
       .set({
         sections: newSections,
         status: 'draft',
-        updatedAt: Date.now(),
+        updatedAt: new Date(),
       })
       .where(eq(articles.id, draftId));
 
@@ -302,7 +315,7 @@ export async function finalizeArticle(draftId: string) {
       .update(articles)
       .set({
         status: 'published',
-        updatedAt: Date.now(),
+        updatedAt: new Date(),
       })
       .where(eq(articles.id, draftId));
 
@@ -347,7 +360,7 @@ export async function saveWorkflowState(draftId: string, state: any) {
       .update(articles)
       .set({
         workflowState: state,
-        updatedAt: Date.now(),
+        updatedAt: new Date(),
       })
       .where(eq(articles.id, draftId));
 
@@ -442,3 +455,169 @@ export async function listUserArticles() {
   }
 }
 
+/**
+ * note記事を全自動で生成するServer Action
+ * 外部同期: OpenRouter経由でLLMを呼び出し、記事を生成
+ */
+export async function autoGenerateArticle(
+  theme: string,
+  options?: GenerateNoteArticleOptions
+) {
+  try {
+    const session = await getSession();
+    const userId = session?.user?.id;
+
+    console.log('[autoGenerateArticle] Starting generation for theme:', theme);
+
+    // パイプラインを実行
+    const result = await generateNoteArticle(theme, options);
+
+    console.log('[autoGenerateArticle] Generation complete');
+
+    // DBに保存
+    const dbResult = await db
+      .insert(articles)
+      .values({
+        id: nanoid(),
+        authorId: userId || null,
+        title: result.meta.selectedTitle,
+        status: 'draft',
+        strategyMemo: {
+          persona: result.strategy.persona,
+          usp: result.strategy.usp,
+          outline: result.strategy.outline.map((o) => o.heading),
+        },
+        sections: result.strategy.outline.map((o, i) => ({
+          heading: o.heading,
+          body: '', // 本文はMarkdownに統合済み
+        })),
+        price: result.meta.price,
+        paywallIndex: result.meta.paywallIndex,
+        freeMarkdown: result.content.freeMarkdown,
+        paidMarkdown: result.content.paidMarkdown,
+        combinedMarkdown: result.content.combinedMarkdown,
+        cta: result.cta,
+        distribution: result.distribution,
+        metrics: result.meta.metrics,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+
+    const article = dbResult[0];
+    if (!article) {
+      throw new Error('Failed to create article');
+    }
+
+    return {
+      success: true,
+      articleId: article.id,
+      result: {
+        title: result.meta.selectedTitle,
+        price: result.meta.price,
+        wordCount: result.meta.wordCount,
+        metrics: result.meta.metrics,
+        qualityScore: result.qualityCheck.overallScore,
+      },
+    };
+  } catch (error: any) {
+    console.error('[autoGenerateArticle] Error:', error);
+    return {
+      success: false,
+      error: error.message || '記事の生成に失敗しました',
+    };
+  }
+}
+
+/**
+ * note用のMarkdownをエクスポートするServer Action
+ */
+export async function exportNoteMarkdown(draftId: string) {
+  try {
+    const session = await getSession();
+    const userId = session?.user?.id;
+
+    // 記事を取得
+    const [article] = await db
+      .select()
+      .from(articles)
+      .where(eq(articles.id, draftId))
+      .limit(1);
+
+    if (!article) {
+      return { success: false, error: '記事が見つかりません' };
+    }
+
+    // 権限チェック
+    if (article.authorId && article.authorId !== userId) {
+      return { success: false, error: '権限がありません' };
+    }
+
+    return {
+      success: true,
+      markdown: {
+        free: article.freeMarkdown || '',
+        paid: article.paidMarkdown || '',
+        combined: article.combinedMarkdown || '',
+      },
+      meta: {
+        title: article.title,
+        price: article.price,
+        paywallIndex: article.paywallIndex,
+      },
+    };
+  } catch (error: any) {
+    console.error('[exportNoteMarkdown] Error:', error);
+    return {
+      success: false,
+      error: error.message || 'Markdownのエクスポートに失敗しました',
+    };
+  }
+}
+
+/**
+ * X投稿文を生成するServer Action
+ */
+export async function generateDistribution(draftId: string) {
+  try {
+    const session = await getSession();
+    const userId = session?.user?.id;
+
+    // 記事を取得
+    const [article] = await db
+      .select()
+      .from(articles)
+      .where(eq(articles.id, draftId))
+      .limit(1);
+
+    if (!article) {
+      return { success: false, error: '記事が見つかりません' };
+    }
+
+    // 権限チェック
+    if (article.authorId && article.authorId !== userId) {
+      return { success: false, error: '権限がありません' };
+    }
+
+    // すでに配信情報がある場合はそれを返す
+    if (article.distribution) {
+      return {
+        success: true,
+        distribution: article.distribution,
+      };
+    }
+
+    // 配信情報を生成（パイプラインを再実行）
+    // TODO: 配信のみを生成する軽量版を実装
+    return {
+      success: false,
+      error: '配信情報の生成は未実装です',
+    };
+  } catch (error: any) {
+    console.error('[generateDistribution] Error:', error);
+    return {
+      success: false,
+      error: error.message || '配信情報の生成に失敗しました',
+    };
+  }
+}

@@ -1,13 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { signIn, signUp } from '@workspace/auth/client';
 import { Button } from '@workspace/ui/components/button';
 
 export default function SignUpPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = searchParams.get('next') ?? '/articles/new';
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -24,9 +26,9 @@ export default function SignUpPage() {
         name,
         email,
         password,
-        callbackURL: '/dashboard',
+        callbackURL: next,
       });
-      router.push('/dashboard');
+      router.push(next);
     } catch (err) {
       setError('サインアップに失敗しました。入力内容を確認してください。');
       console.error(err);
@@ -41,7 +43,7 @@ export default function SignUpPage() {
     try {
       await signIn.social({
         provider: 'google',
-        callbackURL: '/dashboard',
+        callbackURL: next,
       });
     } catch (err) {
       setError('Googleサインインに失敗しました。');
@@ -56,7 +58,7 @@ export default function SignUpPage() {
     try {
       await signIn.social({
         provider: 'github',
-        callbackURL: '/dashboard',
+        callbackURL: next,
       });
     } catch (err) {
       setError('GitHubサインインに失敗しました。');
@@ -176,7 +178,10 @@ export default function SignUpPage() {
 
           <p className='text-center text-sm text-muted-foreground'>
             すでにアカウントをお持ちの方は{' '}
-            <Link href='/sign-in' className='font-medium underline'>
+            <Link
+              href={`/sign-in?next=${encodeURIComponent(next)}`}
+              className='font-medium underline'
+            >
               サインイン
             </Link>
           </p>

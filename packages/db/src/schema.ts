@@ -277,6 +277,33 @@ export const articles = sqliteTable('articles', {
   >(),
   // ワークフロー状態（useworkflowの進行状態）
   workflowState: text('workflowState', { mode: 'json' }),
+  // note記事生成用の追加フィールド
+  price: integer('price'), // 価格（円）
+  paywallIndex: integer('paywallIndex'), // 有料化開始セクションのインデックス
+  freeMarkdown: text('freeMarkdown'), // 無料部分のMarkdown
+  paidMarkdown: text('paidMarkdown'), // 有料部分のMarkdown
+  combinedMarkdown: text('combinedMarkdown'), // 結合Markdown（[PAYWALL]マーカー入り）
+  cta: text('cta', { mode: 'json' }).$type<{
+    header?: string;
+    freeFooter?: string;
+    paidBridge?: string;
+    paidFooter?: string;
+  }>(), // CTA（行動喚起）
+  distribution: text('distribution', { mode: 'json' }).$type<{
+    posts?: Array<{ timing: string; pattern: string; text: string; imageText: string }>;
+    thread?: string[];
+    hashtags?: string[];
+  }>(), // X投稿文・スレッド
+  assets: text('assets', { mode: 'json' }).$type<string[]>(), // 付録素材リスト
+  metrics: text('metrics', { mode: 'json' }).$type<{
+    wordCount?: { total: number; free: number; paid: number };
+    questionCount?: number;
+    sectionCount?: number;
+    checklistItems?: number;
+  }>(), // メトリクス
+  abTests: text('abTests', { mode: 'json' }).$type<
+    Array<{ type: string; variant: string; result?: any }>
+  >(), // A/Bテスト記録
   createdAt: integer('createdAt', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),
