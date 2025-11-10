@@ -1,15 +1,20 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import * as pdfjsLib from 'pdfjs-dist';
 import type {
   NormalizedOcr,
   NormalizedPage,
 } from '@workspace/ai/src/ocr/types';
+import { SchemaExportButton } from './_components/SchemaExportButton';
+import { FieldSchemaDetectButton } from './_components/FieldSchemaDetectButton';
 
-// PDF.js Workerの設定
+// PDF.js を動的にインポート（サーバーサイドでの評価を回避）
+let pdfjsLib: typeof import('pdfjs-dist') | null = null;
 if (typeof window !== 'undefined') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+  import('pdfjs-dist').then((module) => {
+    pdfjsLib = module;
+    module.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+  });
 }
 
 export default function OcrViewerPage() {
@@ -34,6 +39,12 @@ export default function OcrViewerPage() {
 
   // PDFから画像URLを生成するヘルパー関数
   const generatePdfPreview = async (pdfFile: File): Promise<string[]> => {
+    // PDF.jsが読み込まれるまで待つ
+    if (!pdfjsLib) {
+      pdfjsLib = await import('pdfjs-dist');
+      pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+    }
+
     const arrayBuffer = await pdfFile.arrayBuffer();
     const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
     const urls: string[] = [];
@@ -479,23 +490,37 @@ export default function OcrViewerPage() {
         {ocr && (
           <div className='bg-card text-card-foreground rounded-lg border p-5 mb-6'>
             <div className='flex flex-col gap-4 mb-6'>
-              <div className='flex items-center justify-between'>
+              <div className='flex items-center justify-between flex-wrap gap-3'>
                 <h2 className='text-xl font-bold'>結果を表示</h2>
-                <div className='flex items-center gap-2'>
-                  <label className='text-sm font-medium text-muted-foreground'>
-                    Page:
-                  </label>
-                  <select
-                    value={selectedPage}
-                    onChange={(e) => setSelectedPage(Number(e.target.value))}
-                    className='border border-input rounded-md px-3 py-1.5 text-sm bg-background'
-                  >
-                    {ocr.pages.map((_, idx) => (
-                      <option key={idx} value={idx}>
-                        {idx + 1} / {ocr.pages.length}
-                      </option>
-                    ))}
-                  </select>
+                <div className='flex items-center gap-3'>
+                  <SchemaExportButton
+                    blocks={ocr.pages[selectedPage]?.blocks || []}
+                    disabled={!ocr.pages[selectedPage]?.blocks.length}
+                  />
+                  <FieldSchemaDetectButton
+                    ocr={ocr}
+                    imageUrl={imageUrls[selectedPage] || null}
+                    selectedPage={selectedPage}
+                    disabled={
+                      !ocr.pages[selectedPage] || !imageUrls[selectedPage]
+                    }
+                  />
+                  <div className='flex items-center gap-2'>
+                    <label className='text-sm font-medium text-muted-foreground'>
+                      Page:
+                    </label>
+                    <select
+                      value={selectedPage}
+                      onChange={(e) => setSelectedPage(Number(e.target.value))}
+                      className='border border-input rounded-md px-3 py-1.5 text-sm bg-background'
+                    >
+                      {ocr.pages.map((_, idx) => (
+                        <option key={idx} value={idx}>
+                          {idx + 1} / {ocr.pages.length}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
 

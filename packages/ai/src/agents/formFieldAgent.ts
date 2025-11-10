@@ -44,10 +44,21 @@ export interface FieldDetectionResult {
 }
 
 /**
+ * Options for field detection
+ */
+export interface DetectFormFieldsOptions {
+  /** Base64 data URL images by page index (e.g., { 0: "data:image/png;base64,..." }) */
+  imagesByPage?: Record<number, string>;
+  /** Page index hint for single-page detection (default: 0) */
+  pageHint?: number;
+}
+
+/**
  * Detect form fields from normalized OCR
  */
 export async function detectFormFields(
-  ocr: NormalizedOcr
+  ocr: NormalizedOcr,
+  options?: DetectFormFieldsOptions
 ): Promise<FieldDetectionResult> {
   const startTime = Date.now();
 
@@ -69,8 +80,30 @@ export async function detectFormFields(
   const userPrompt = japaneseGovFormsUserPromptTemplate(ocrText, layoutInfo);
   console.log('[FormFieldAgent] User prompt length:', userPrompt.length);
 
+  // 画像を取得（指定されたページ、なければ0ページ）
+  const pageHint = options?.pageHint ?? 0;
+  const imageDataUrl = options?.imagesByPage?.[pageHint];
+
+  if (imageDataUrl) {
+    console.log('[FormFieldAgent] Including image for page', pageHint);
+  }
+
   console.log('[FormFieldAgent] Calling LLM...');
   const result = await withRetry(async () => {
+    // メッセージコンテンツを構築
+    const userContent: Array<{
+      type: string;
+      text?: string;
+      image_url?: { url: string };
+    }> = [{ type: 'text', text: userPrompt }];
+
+    if (imageDataUrl) {
+      userContent.push({
+        type: 'image_url',
+        image_url: { url: imageDataUrl },
+      });
+    }
+
     const response = await openai.chat.completions.create({
       model: defaultModel,
       messages: [
@@ -80,7 +113,7 @@ export async function detectFormFields(
         },
         {
           role: 'user',
-          content: userPrompt,
+          content: userContent as any,
         },
       ],
       response_format: { type: 'json_object' },
@@ -92,7 +125,19 @@ export async function detectFormFields(
 
     if (!content) throw new Error('No response from LLM');
 
-    const parsed = JSON.parse(content);
+    // マークダウンコードブロックを除去（```json...```）
+    let cleanedContent = content.trim();
+    if (cleanedContent.startsWith('```json')) {
+      cleanedContent = cleanedContent.replace(/^```json\s*\n?/, '');
+    }
+    if (cleanedContent.startsWith('```')) {
+      cleanedContent = cleanedContent.replace(/^```\s*\n?/, '');
+    }
+    if (cleanedContent.endsWith('```')) {
+      cleanedContent = cleanedContent.replace(/\n?```\s*$/, '');
+    }
+
+    const parsed = JSON.parse(cleanedContent);
     console.log('[FormFieldAgent] Parsed result:', {
       hasFields: !!parsed.fields,
       fieldsCount: parsed.fields?.length || 0,
@@ -130,6 +175,7 @@ function formatLayoutInfo(ocr: NormalizedOcr): string {
     lines.push(`\n### テキストブロック (${page.blocks.length}個)`);
     for (let i = 0; i < page.blocks.length; i++) {
       const block = page.blocks[i];
+      if (!block) continue;
       lines.push(
         `[${i}] タイプ: ${block.blockType}, 位置: (${block.bbox.x.toFixed(3)}, ${block.bbox.y.toFixed(3)}), サイズ: ${block.bbox.w.toFixed(3)}x${block.bbox.h.toFixed(3)}`
       );
@@ -143,6 +189,7 @@ function formatLayoutInfo(ocr: NormalizedOcr): string {
       lines.push(`\n### 表 (${page.tables.length}個)`);
       for (let i = 0; i < page.tables.length; i++) {
         const table = page.tables[i];
+        if (!table) continue;
         lines.push(
           `[${i}] ${table.rows}行 x ${table.cols}列, 位置: (${table.bbox.x.toFixed(3)}, ${table.bbox.y.toFixed(3)})`
         );
@@ -165,6 +212,7 @@ function formatLayoutInfo(ocr: NormalizedOcr): string {
       lines.push(`\n### 図表 (${page.figures.length}個)`);
       for (let i = 0; i < page.figures.length; i++) {
         const figure = page.figures[i];
+        if (!figure) continue;
         lines.push(
           `[${i}] タイプ: ${figure.figureType}, 位置: (${figure.bbox.x.toFixed(3)}, ${figure.bbox.y.toFixed(3)})`
         );
