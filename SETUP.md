@@ -9,6 +9,7 @@
 - Turso CLI
 - Stripeアカウント
 - （オプション）Google/GitHubアカウント（OAuth用）
+- （オプション）Python 3.10以上（OCR機能を使用する場合）
 
 ## ステップバイステップガイド
 

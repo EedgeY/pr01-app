@@ -1,0 +1,10 @@
+{
+  "name": "@workspace/ocr-service",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "uv run main.py",
+    "build": "echo 'Python service - no build needed'",
+    "start": "uv run main.py"
+  }
+}

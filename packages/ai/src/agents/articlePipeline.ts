@@ -9,6 +9,10 @@ import {
   editorAgent,
   titleScorerAgent,
   scoreTitle,
+  expertArticleStrategyAgent,
+  expertArticleDraftAgent,
+  expertEditorAgent,
+  scoreExpertTitle,
 } from './index';
 
 /**
@@ -22,6 +26,8 @@ export interface GenerateNoteArticleOptions {
   toneLevel?: 'casual' | 'standard' | 'formal'; // 口調レベル
   profileUrl?: string; // noteプロフィールURL
   magazineUrl?: string; // マガジンURL
+  writingStyle?: 'note' | 'expert'; // 文体スタイル（既定: expert）
+  ctaMode?: 'full' | 'minimal'; // CTAモード（既定: minimal）
 }
 
 /**
@@ -109,10 +115,18 @@ export async function generateNoteArticle(
     toneLevel = 'standard',
     profileUrl = '',
     magazineUrl = '',
+    writingStyle = 'expert', // 既定は専門スタイル
+    ctaMode = 'minimal', // 既定は最小化
   } = options;
 
+  // スタイルに応じてエージェントを選択
+  const strategyAgent = writingStyle === 'expert' ? expertArticleStrategyAgent : articleStrategyAgent;
+  const draftAgent = writingStyle === 'expert' ? expertArticleDraftAgent : articleDraftAgent;
+  const editorAgentSelected = writingStyle === 'expert' ? expertEditorAgent : editorAgent;
+  const scoreTitleFunc = writingStyle === 'expert' ? scoreExpertTitle : scoreTitle;
+
   console.log('[Pipeline] Step 1: Strategy generation...');
-  
+
   // Step 1: 戦略生成
   const strategyPrompt = `記事テーマ: ${theme}
 
@@ -125,7 +139,7 @@ JSON形式で出力してください。`;
       messages: [
         {
           role: 'system',
-          content: articleStrategyAgent.instructions,
+          content: strategyAgent.instructions,
         },
         {
           role: 'user',
@@ -141,10 +155,10 @@ JSON形式で出力してください。`;
   });
 
   console.log('[Pipeline] Step 2: Title scoring...');
-  
+
   // Step 2: タイトルスコアリング
   const titleScores = strategyResult.titles.map((t: any) => {
-    const scoreResult = scoreTitle(t.title);
+    const scoreResult = scoreTitleFunc(t.title);
     return {
       title: t.title,
       score: scoreResult.score,
@@ -160,14 +174,14 @@ JSON形式で出力してください。`;
   );
 
   console.log('[Pipeline] Step 3: Draft generation...');
-  
+
   // Step 3: 各セクションのドラフト生成
   const sections = [];
   let previousContext = '';
 
   for (let i = 0; i < strategyResult.outline.length; i++) {
     const section = strategyResult.outline[i];
-    
+
     const draftPrompt = JSON.stringify({
       persona: strategyResult.persona,
       usp: strategyResult.usp,
@@ -182,7 +196,7 @@ JSON形式で出力してください。`;
         messages: [
           {
             role: 'system',
-            content: articleDraftAgent.instructions,
+            content: draftAgent.instructions,
           },
           {
             role: 'user',
@@ -210,7 +224,7 @@ JSON形式で出力してください。`;
   }
 
   console.log('[Pipeline] Step 4: Gate & pricing...');
-  
+
   // Step 4: ゲート&価格設定
   const gatePrompt = JSON.stringify({
     sections: sections.map((s) => ({
@@ -252,52 +266,64 @@ JSON形式で出力してください。`;
   if (priceTier === 'premium') finalPrice = Math.floor(finalPrice * 1.2);
 
   console.log('[Pipeline] Step 5: CTA generation...');
-  
+
   // Step 5: CTA生成
-  const ctaPrompts = [
-    { type: 'header', variation: 'standard' },
-    { type: 'free_footer', variation: 'standard' },
-    { type: 'paid_bridge', variation: 'standard' },
-    { type: 'paid_footer', variation: 'standard' },
-  ];
+  let ctas: any = {};
+  
+  if (ctaMode === 'minimal') {
+    // 最小化モード: 固定値で上書き
+    ctas = {
+      header: `[フォローはこちら](${profileUrl || 'https://note.com/your_profile'})`,
+      freefooter: '',
+      paidbridge: '---\n\nここから先は有料です\n\n---',
+      paidfooter: '',
+    };
+  } else {
+    // フルモード: 従来通りCTAを生成
+    const ctaPrompts = [
+      { type: 'header', variation: 'standard' },
+      { type: 'free_footer', variation: 'standard' },
+      { type: 'paid_bridge', variation: 'standard' },
+      { type: 'paid_footer', variation: 'standard' },
+    ];
 
-  const ctas: any = {};
-  for (const ctaPrompt of ctaPrompts) {
-    const prompt = JSON.stringify({
-      ctaType: ctaPrompt.type,
-      articleTheme: theme,
-      paidContentSummary: gateResult.paidContentSummary,
-      price: finalPrice,
-      relatedArticles: [],
-      profileUrl,
-      magazineUrl,
-      variation: ctaPrompt.variation,
-    });
-
-    const ctaText = await withRetry(async () => {
-      const response = await openai.chat.completions.create({
-        model: defaultModel,
-        messages: [
-          {
-            role: 'system',
-            content: ctaAgent.instructions,
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
+    for (const ctaPrompt of ctaPrompts) {
+      const prompt = JSON.stringify({
+        ctaType: ctaPrompt.type,
+        articleTheme: theme,
+        paidContentSummary: gateResult.paidContentSummary,
+        price: finalPrice,
+        relatedArticles: [],
+        profileUrl,
+        magazineUrl,
+        variation: ctaPrompt.variation,
       });
 
-      return response.choices[0]?.message?.content || '';
-    });
+      const ctaText = await withRetry(async () => {
+        const response = await openai.chat.completions.create({
+          model: defaultModel,
+          messages: [
+            {
+              role: 'system',
+              content: ctaAgent.instructions,
+            },
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+        });
 
-    const key = ctaPrompt.type.replace('_', '').replace('_', '');
-    ctas[key] = ctaText;
+        return response.choices[0]?.message?.content || '';
+      });
+
+      const key = ctaPrompt.type.replace('_', '').replace('_', '');
+      ctas[key] = ctaText;
+    }
   }
 
   console.log('[Pipeline] Step 6: Editor QA...');
-  
+
   // Step 6: 編集チェック
   const editorPrompt = JSON.stringify({
     title: selectedTitle.title,
@@ -313,7 +339,7 @@ JSON形式で出力してください。`;
       messages: [
         {
           role: 'system',
-          content: editorAgent.instructions,
+          content: editorAgentSelected.instructions,
         },
         {
           role: 'user',
@@ -337,21 +363,21 @@ JSON形式で出力してください。`;
   }
 
   console.log('[Pipeline] Step 7: Post-processing...');
-  
+
   // Step 7: ポストプロセス（Markdown整形）
   const paywallIndex = gateResult.gatePosition.sectionIndex;
-  
+
   // combined.md（[PAYWALL]マーカー入り）
   let combinedMarkdown = `# ${selectedTitle.title}\n\n`;
   combinedMarkdown += ctas.header + '\n\n';
-  
+
   sections.forEach((section, index) => {
     if (index === paywallIndex) {
       combinedMarkdown += ctas.paidbridge + '\n\n';
     }
     combinedMarkdown += `## ${section.heading}\n\n${section.body}\n\n`;
   });
-  
+
   combinedMarkdown += ctas.paidfooter;
 
   // free.md
@@ -370,7 +396,7 @@ JSON形式で出力してください。`;
   paidMarkdown += ctas.paidfooter;
 
   console.log('[Pipeline] Step 8: Distribution (optional)...');
-  
+
   // Step 8: 配信生成（オプション）
   let distribution;
   if (includeDistribution) {
@@ -406,7 +432,7 @@ JSON形式で出力してください。`;
   }
 
   console.log('[Pipeline] Step 9: Metadata calculation...');
-  
+
   // Step 9: メタデータ計算
   const totalWordCount = sections.reduce((sum, s) => sum + s.wordCount, 0);
   const freeWordCount = sections
@@ -418,7 +444,7 @@ JSON形式で出力してください。`;
   const checklistItems = combinedMarkdown.match(/- \[ \]/g)?.length || 0;
 
   console.log('[Pipeline] Complete!');
-  
+
   return {
     meta: {
       theme,
@@ -460,4 +486,3 @@ JSON形式で出力してください。`;
     qualityCheck: editorResult,
   };
 }
-

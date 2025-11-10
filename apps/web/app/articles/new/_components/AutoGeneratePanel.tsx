@@ -43,6 +43,7 @@ export function AutoGeneratePanel() {
   // オプション設定
   const [includeDistribution, setIncludeDistribution] = useState(true);
   const [priceTier, setPriceTier] = useState<'low' | 'standard' | 'premium'>('standard');
+  const [writingStyle, setWritingStyle] = useState<'note' | 'expert'>('expert'); // 既定は専門
 
   const handleGenerate = () => {
     if (!theme.trim()) {
@@ -70,6 +71,8 @@ export function AutoGeneratePanel() {
         const generateResult = await autoGenerateArticle(theme, {
           includeDistribution,
           priceTier,
+          writingStyle,
+          ctaMode: 'minimal', // 常に最小化
         });
 
         if (!generateResult.success || !generateResult.articleId) {
@@ -132,6 +135,40 @@ export function AutoGeneratePanel() {
 
           <div className="space-y-2">
             <label className="block text-sm font-medium">オプション</label>
+            
+            <div>
+              <label className="block text-sm mb-1">文体スタイル</label>
+              <div className="flex space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setWritingStyle('expert')}
+                  className={`px-4 py-2 rounded border ${
+                    writingStyle === 'expert'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  専門（既定）
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWritingStyle('note')}
+                  className={`px-4 py-2 rounded border ${
+                    writingStyle === 'note'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  note
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                {writingStyle === 'expert'
+                  ? '簡潔・具体的・再現性重視の技術ブリーフ（感情表現なし）'
+                  : '共感・ストーリー重視のnoteスタイル'}
+              </p>
+            </div>
+
             <div className="flex items-center space-x-4">
               <label className="flex items-center">
                 <input
@@ -143,6 +180,7 @@ export function AutoGeneratePanel() {
                 X投稿文を生成
               </label>
             </div>
+            
             <div>
               <label className="block text-sm mb-1">価格帯</label>
               <select

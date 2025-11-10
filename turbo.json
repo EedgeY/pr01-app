@@ -18,7 +18,8 @@
         "STRIPE_WEBHOOK_SECRET",
         "OPENROUTER_API_KEY",
         "OPENROUTER_BASE_URL",
-        "APP_URL"
+        "APP_URL",
+        "OCR_SERVICE_URL"
       ]
     },
     "lint": {
@@ -48,7 +49,8 @@
         "STRIPE_WEBHOOK_SECRET",
         "OPENROUTER_API_KEY",
         "OPENROUTER_BASE_URL",
-        "APP_URL"
+        "APP_URL",
+        "OCR_SERVICE_URL"
       ]
     },
     "db:generate": {

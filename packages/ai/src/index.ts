@@ -10,6 +10,10 @@ export {
   editorAgent,
   titleScorerAgent,
   scoreTitle,
+  detectFormFields,
+  validateFields,
+  groupFieldsByPage,
+  sortFieldsByReadingOrder,
 } from './agents';
 export { webSearchTool, webScraperTool, vectorLookupTool } from './tools';
 export { generateNoteArticle } from './agents/articlePipeline';
@@ -17,3 +21,7 @@ export type {
   GenerateNoteArticleOptions,
   NoteArticleResult,
 } from './agents/articlePipeline';
+export type { DetectedField, FieldDetectionResult } from './agents/formFieldAgent';
+
+// OCR exports
+export * from './ocr';
