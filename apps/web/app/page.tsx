@@ -20,24 +20,14 @@ export default function Page() {
           <div className='flex gap-4 justify-center'>
             {session ? (
               <>
-                <Link href='/articles/new'>
-                  <Button size='lg'>執筆を開始</Button>
-                </Link>
-                <Link href='/pricing'>
-                  <Button size='lg' variant='outline'>
-                    料金を見る
-                  </Button>
+                <Link href='/ocr-viewer'>
+                  <Button size='lg'>OCR Viewer</Button>
                 </Link>
               </>
             ) : (
               <>
-                <Link href='/sign-in?next=/articles/new'>
-                  <Button size='lg'>執筆を開始</Button>
-                </Link>
-                <Link href='/sign-up'>
-                  <Button size='lg' variant='outline'>
-                    今すぐ始める
-                  </Button>
+                <Link href='/sign-in?next=/ocr-viewer'>
+                  <Button size='lg'>OCR Viewer</Button>
                 </Link>
               </>
             )}

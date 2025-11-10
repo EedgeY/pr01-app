@@ -19,20 +19,14 @@ export function GlobalHeader() {
           </Link>
           {session ? (
             <>
-              <Link href='/articles/new'>
-                <Button>執筆を開始</Button>
-              </Link>
-              <Link href='/dashboard'>
-                <Button variant='outline'>ダッシュボード</Button>
+              <Link href='/ocr-viewer'>
+                <Button>OCR Viewer</Button>
               </Link>
             </>
           ) : (
             <>
-              <Link href='/sign-in?next=/articles/new'>
-                <Button>執筆を開始</Button>
-              </Link>
-              <Link href='/sign-in'>
-                <Button variant='outline'>サインイン</Button>
+              <Link href='/sign-in?next=/ocr-viewer'>
+                <Button>OCR Viewer</Button>
               </Link>
             </>
           )}
@@ -41,7 +35,3 @@ export function GlobalHeader() {
     </header>
   );
 }
-
-
-
-

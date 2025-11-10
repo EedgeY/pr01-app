@@ -5,6 +5,7 @@ import type {
   NormalizedOcr,
   NormalizedPage,
 } from '@workspace/ai/src/ocr/types';
+import type { DetectedField } from '@workspace/ai';
 import { SchemaExportButton } from './_components/SchemaExportButton';
 import { FieldSchemaDetectButton } from './_components/FieldSchemaDetectButton';
 
@@ -28,11 +29,13 @@ export default function OcrViewerPage() {
   const [showBlocks, setShowBlocks] = useState(true);
   const [showTables, setShowTables] = useState(true);
   const [showFigures, setShowFigures] = useState(true);
+  const [showFields, setShowFields] = useState(true);
+  const [detectedFields, setDetectedFields] = useState<DetectedField[]>([]);
   const [selectedBlock, setSelectedBlock] = useState<{
-    type: 'block' | 'table' | 'figure';
+    type: 'block' | 'table' | 'figure' | 'field';
     index: number;
   } | null>(null);
-  const [activeTab, setActiveTab] = useState<'blocks' | 'tables' | 'figures'>(
+  const [activeTab, setActiveTab] = useState<'blocks' | 'tables' | 'figures' | 'fields'>(
     'blocks'
   );
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -81,6 +84,7 @@ export default function OcrViewerPage() {
       setFile(selectedFile);
       setOcr(null);
       setError(null);
+      setDetectedFields([]);
       // 既存のURLをクリーンアップ
       imageUrls.forEach((url) => URL.revokeObjectURL(url));
       setImageUrls([]);
@@ -346,6 +350,73 @@ export default function OcrViewerPage() {
           ctx.font = '14px sans-serif';
         });
       }
+
+      // AI検出フィールド（紫）
+      if (showFields && detectedFields.length > 0) {
+        ctx.font = '14px sans-serif';
+
+        // 現在のページのフィールドのみフィルタリング
+        const pageFields = detectedFields.filter(
+          (field) => field.pageIndex === page.pageIndex
+        );
+
+        pageFields.forEach((field, idx) => {
+          const isSelected =
+            selectedBlock?.type === 'field' && selectedBlock.index === idx;
+
+          ctx.strokeStyle = isSelected
+            ? 'rgba(239, 68, 68, 1)' // 選択時は赤で強調
+            : 'rgba(168, 85, 247, 0.9)'; // 通常は紫
+          ctx.lineWidth = isSelected ? 5 : 3;
+          ctx.fillStyle = isSelected
+            ? 'rgba(239, 68, 68, 0.95)'
+            : 'rgba(168, 85, 247, 0.95)';
+
+          const x = field.bboxNormalized.x * img.width;
+          const y = field.bboxNormalized.y * img.height;
+          const w = field.bboxNormalized.w * img.width;
+          const h = field.bboxNormalized.h * img.height;
+
+          // フィールド枠
+          ctx.strokeRect(x, y, w, h);
+
+          // 選択時は半透明の塗りつぶしも追加
+          if (isSelected) {
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.15)';
+            ctx.fillRect(x, y, w, h);
+          }
+
+          // フィールド情報を表示
+          const fieldLabel = `${field.label} (${field.type})`;
+          const labelY = y > 35 ? y - 22 : y + h + 20;
+
+          // 背景を描画
+          const labelMetrics = ctx.measureText(fieldLabel);
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+          ctx.fillRect(x, labelY - 12, labelMetrics.width + 4, 16);
+
+          ctx.fillStyle = isSelected
+            ? 'rgba(239, 68, 68, 0.95)'
+            : 'rgba(168, 85, 247, 0.95)';
+          ctx.fillText(fieldLabel, x + 2, labelY);
+
+          // bbox値を表示
+          ctx.font = '12px monospace';
+          const bboxText = `[${field.bboxNormalized.x.toFixed(3)}, ${field.bboxNormalized.y.toFixed(3)}, ${field.bboxNormalized.w.toFixed(3)}, ${field.bboxNormalized.h.toFixed(3)}]`;
+          const bboxY = y > 35 ? y - 5 : y + h + 35;
+
+          const bboxMetrics = ctx.measureText(bboxText);
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+          ctx.fillRect(x, bboxY - 10, bboxMetrics.width + 4, 14);
+
+          ctx.fillStyle = isSelected
+            ? 'rgba(239, 68, 68, 0.95)'
+            : 'rgba(168, 85, 247, 0.95)';
+          ctx.fillText(bboxText, x + 2, bboxY);
+
+          ctx.font = '14px sans-serif';
+        });
+      }
     };
     img.src = imageUrl;
   };
@@ -367,6 +438,8 @@ export default function OcrViewerPage() {
     showBlocks,
     showTables,
     showFigures,
+    showFields,
+    detectedFields,
     selectedBlock,
   ]);
 
@@ -504,6 +577,7 @@ export default function OcrViewerPage() {
                     disabled={
                       !ocr.pages[selectedPage] || !imageUrls[selectedPage]
                     }
+                    onFieldsDetected={(fields) => setDetectedFields(fields)}
                   />
                   <div className='flex items-center gap-2'>
                     <label className='text-sm font-medium text-muted-foreground'>
@@ -554,6 +628,15 @@ export default function OcrViewerPage() {
                   />
                   <span>Figures</span>
                 </label>
+                <label className='flex items-center gap-2 cursor-pointer'>
+                  <input
+                    type='checkbox'
+                    checked={showFields}
+                    onChange={(e) => setShowFields(e.target.checked)}
+                    className='rounded border-input'
+                  />
+                  <span className='text-purple-600 font-medium'>AI Fields</span>
+                </label>
               </div>
             </div>
 
@@ -580,6 +663,10 @@ export default function OcrViewerPage() {
                   <span className='flex items-center gap-1.5'>
                     <span className='w-2.5 h-2.5 bg-green-500 rounded'></span>
                     Figures
+                  </span>
+                  <span className='flex items-center gap-1.5'>
+                    <span className='w-2.5 h-2.5 bg-purple-500 rounded'></span>
+                    AI Fields
                   </span>
                 </div>
               </div>
@@ -632,6 +719,21 @@ export default function OcrViewerPage() {
                           🖼️ Figures
                           <span className='text-xs bg-muted px-2 py-0.5 rounded-full'>
                             {ocr.pages[selectedPage].figures?.length || 0}
+                          </span>
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => setActiveTab('fields')}
+                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                          activeTab === 'fields'
+                            ? 'bg-muted border-b-2 border-primary text-foreground'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                        }`}
+                      >
+                        <div className='flex items-center justify-center gap-2'>
+                          🤖 AI Fields
+                          <span className='text-xs bg-purple-500 text-white px-2 py-0.5 rounded-full'>
+                            {detectedFields.filter(f => f.pageIndex === selectedPage).length}
                           </span>
                         </div>
                       </button>
@@ -766,6 +868,71 @@ export default function OcrViewerPage() {
                           ) : (
                             <div className='text-center text-muted-foreground py-8'>
                               図表が検出されませんでした
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Fields Tab */}
+                      {activeTab === 'fields' && (
+                        <div className='space-y-2'>
+                          {detectedFields.filter(f => f.pageIndex === selectedPage).length > 0 ? (
+                            detectedFields
+                              .filter(f => f.pageIndex === selectedPage)
+                              .map((field, idx) => {
+                                const isSelected =
+                                  selectedBlock?.type === 'field' &&
+                                  selectedBlock.index === idx;
+                                return (
+                                  <div
+                                    key={idx}
+                                    onClick={() =>
+                                      setSelectedBlock({
+                                        type: 'field',
+                                        index: idx,
+                                      })
+                                    }
+                                    className={`p-3 rounded border cursor-pointer transition-all ${
+                                      isSelected
+                                        ? 'bg-red-50 border-red-500 ring-2 ring-red-200'
+                                        : 'bg-background hover:bg-muted/50'
+                                    }`}
+                                  >
+                                    <div className='flex items-start gap-2'>
+                                      <span className='text-xs font-mono bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded'>
+                                        {idx}
+                                      </span>
+                                      <div className='flex-1 min-w-0'>
+                                        <div className='flex items-center gap-2 mb-1'>
+                                          <span className='font-medium text-sm'>{field.label}</span>
+                                          <span className='text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full'>
+                                            {field.type}
+                                          </span>
+                                          {field.required && (
+                                            <span className='text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full'>
+                                              必須
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className='text-xs text-muted-foreground space-y-1'>
+                                          <div>キー: <code className='bg-muted px-1 py-0.5 rounded'>{field.name}</code></div>
+                                          <div>信頼度: {(field.confidence * 100).toFixed(0)}%</div>
+                                          <div className='font-mono text-[10px]'>
+                                            bbox: [{field.bboxNormalized.x.toFixed(3)}, {field.bboxNormalized.y.toFixed(3)}, {field.bboxNormalized.w.toFixed(3)}, {field.bboxNormalized.h.toFixed(3)}]
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })
+                          ) : (
+                            <div className='text-center text-muted-foreground py-8'>
+                              <div className='mb-2'>🤖</div>
+                              <div>AIフィールドがまだ検出されていません</div>
+                              <div className='text-xs mt-2'>
+                                「入力欄TextSchema生成」ボタンをクリックして検出してください
+                              </div>
                             </div>
                           )}
                         </div>

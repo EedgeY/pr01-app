@@ -7,6 +7,7 @@ const nextConfig = {
     '@workspace/db',
     '@workspace/stripe',
   ],
+  serverComponentsExternalPackages: ['server-only'],
   images: {
     domains: ['localhost', 'lh3.googleusercontent.com'],
   },

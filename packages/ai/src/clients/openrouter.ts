@@ -14,7 +14,7 @@ export const openai = new OpenAI({
   },
 });
 
-export const defaultModel = 'openai/gpt-4o-mini';
+export const defaultModel = 'google/gemini-2.5-flash-preview-09-2025';
 
 // レート制限対応のリトライヘルパー
 export async function withRetry<T>(
@@ -32,8 +32,7 @@ export async function withRetry<T>(
 
       // 429 (レート制限) または 5xx (サーバーエラー) の場合のみリトライ
       const shouldRetry =
-        error?.status === 429 ||
-        (error?.status >= 500 && error?.status < 600);
+        error?.status === 429 || (error?.status >= 500 && error?.status < 600);
 
       if (!shouldRetry || attempt === maxRetries) {
         throw error;
@@ -47,4 +46,3 @@ export async function withRetry<T>(
 
   throw lastError;
 }
-

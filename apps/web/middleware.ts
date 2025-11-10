@@ -28,7 +28,7 @@ export function middleware(request: NextRequest) {
   // 認証ページへのアクセス（既にログイン済みの場合）
   if (authRoutes.some((route) => pathname.startsWith(route))) {
     if (isAuthenticated) {
-      res = NextResponse.redirect(new URL('/dashboard', request.url));
+      res = NextResponse.redirect(new URL('/ocr-viewer', request.url));
     }
   }
 
