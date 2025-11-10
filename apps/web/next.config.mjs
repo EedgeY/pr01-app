@@ -11,9 +11,6 @@ const nextConfig = {
   images: {
     domains: ['localhost', 'lh3.googleusercontent.com'],
   },
-  experimental: {
-    optimizePackageImports: ['tldraw'],
-  },
 };
 
 export default nextConfig;
