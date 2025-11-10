@@ -1,9 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type {
-  NormalizedOcr,
-} from '@workspace/ai/src/ocr/types';
+import type { NormalizedOcr } from '@workspace/ai/src/ocr/types';
 import type { DetectedField } from '@workspace/ai';
 import { SchemaExportButton } from './_components/SchemaExportButton';
 import { FieldSchemaDetectButton } from './_components/FieldSchemaDetectButton';
