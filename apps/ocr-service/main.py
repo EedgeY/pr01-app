@@ -790,6 +790,378 @@ async def layout_only_endpoint(
         raise HTTPException(status_code=500, detail=f"Layout-only processing failed: {str(e)}")
 
 
+class TileSpec(BaseModel):
+    """Tile specification for segmented OCR"""
+    pageIndex: int
+    bboxNormalized: dict  # {x, y, w, h} in [0,1]
+    overlap: Optional[float] = 0.0
+
+
+@app.post("/ocr/ocr-only/tiles", response_model=OCRResponse)
+async def ocr_only_tiles_endpoint(
+    file: UploadFile = File(...),
+    tiles: str = Form(...),  # JSON string of TileSpec[]
+    dpi: int = Form(300),
+    device: Literal["cpu", "cuda", "mps"] = Form("cuda"),
+):
+    """
+    OCR-only endpoint with tile-based processing.
+    - タイル単位で文字認識を実行し、ページ座標に統合
+    """
+    import time
+    import json
+    start_time = time.time()
+
+    # バリデーション
+    validate_dpi(dpi)
+    validate_file_type(file.filename or "unknown", file.content_type or "")
+
+    # タイル仕様をパース
+    try:
+        tile_specs = json.loads(tiles)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid tiles JSON format")
+
+    # デバイスチェック
+    if device == "cuda" and not torch.cuda.is_available():
+        device = "mps" if torch.backends.mps.is_available() else "cpu"
+    elif device == "mps" and not torch.backends.mps.is_available():
+        device = "cpu"
+
+    global ocr_module
+    if ocr_module is None:
+        try:
+            ocr_module = YTOCR(visualize=False, device=device)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to initialize OCR module: {str(e)}")
+
+    content = await file.read()
+    file_ext = Path(file.filename or "").suffix.lower()
+
+    try:
+        # 画像読み込み
+        if file_ext == ".pdf":
+            images = process_pdf_to_images(content, dpi=dpi)
+        else:
+            image = Image.open(io.BytesIO(content))
+            if image.mode != "RGB":
+                image = image.convert("RGB")
+            image = normalize_image_dpi(image, dpi)
+            images = [image]
+
+        # ページごとにタイルをグループ化
+        tiles_by_page = {}
+        for spec in tile_specs:
+            page_idx = spec["pageIndex"]
+            if page_idx not in tiles_by_page:
+                tiles_by_page[page_idx] = []
+            tiles_by_page[page_idx].append(spec)
+
+        # 各ページのタイルを処理
+        pages: list[Page] = []
+        for page_idx, img in enumerate(images):
+            if page_idx not in tiles_by_page:
+                # タイル指定がない場合はスキップまたは全体処理
+                continue
+
+            img_array = np.array(img)
+            page_width = img.width
+            page_height = img.height
+            
+            all_blocks: list[Block] = []
+            
+            # 各タイルを処理
+            for tile_spec in tiles_by_page[page_idx]:
+                bbox_norm = tile_spec["bboxNormalized"]
+                
+                # 正規化座標をピクセルに変換
+                x_px = int(bbox_norm["x"] * page_width)
+                y_px = int(bbox_norm["y"] * page_height)
+                w_px = int(bbox_norm["w"] * page_width)
+                h_px = int(bbox_norm["h"] * page_height)
+                
+                # タイル画像をクロップ
+                tile_img = img_array[y_px:y_px+h_px, x_px:x_px+w_px]
+                
+                # OCR実行
+                loop = asyncio.get_event_loop()
+                tile_result = await loop.run_in_executor(
+                    executor, partial(run_module_once, ocr_module, tile_img)
+                )
+                
+                # タイル結果をページ座標にオフセット
+                # 注: yomitoku_ocr_to_pageには実際のタイルサイズを渡す（ピクセル座標で返される）
+                tile_page = yomitoku_ocr_to_page(
+                    tile_result,
+                    page_index=page_idx,
+                    dpi=dpi,
+                    width=w_px,
+                    height=h_px,
+                )
+                
+                # ブロックの座標をページ座標系に変換
+                for block in tile_page.blocks:
+                    # タイル内のピクセル座標をページのピクセル座標に変換
+                    block.bbox.x = (block.bbox.x + x_px) / page_width
+                    block.bbox.y = (block.bbox.y + y_px) / page_height
+                    block.bbox.w = block.bbox.w / page_width
+                    block.bbox.h = block.bbox.h / page_height
+                    
+                    # 行とトークンも同様に変換
+                    for line in block.lines:
+                        line.bbox.x = (line.bbox.x + x_px) / page_width
+                        line.bbox.y = (line.bbox.y + y_px) / page_height
+                        line.bbox.w = line.bbox.w / page_width
+                        line.bbox.h = line.bbox.h / page_height
+                        
+                        for token in line.tokens:
+                            token.bbox.x = (token.bbox.x + x_px) / page_width
+                            token.bbox.y = (token.bbox.y + y_px) / page_height
+                            token.bbox.w = token.bbox.w / page_width
+                            token.bbox.h = token.bbox.h / page_height
+                    
+                    all_blocks.append(block)
+            
+            # タイル間の重複を除去（IoUベース）
+            deduplicated_blocks = deduplicate_blocks_by_iou(all_blocks, iou_threshold=0.5)
+            
+            page = Page(
+                pageIndex=page_idx,
+                dpi=dpi,
+                widthPx=page_width,
+                heightPx=page_height,
+                blocks=deduplicated_blocks,
+                tables=None,
+                figures=None,
+                readingOrder=None,
+            )
+            pages.append(page)
+
+        processing_time = time.time() - start_time
+        return OCRResponse(pages=pages, processingTime=processing_time, model="yomitoku-ocr-tiles")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Tile OCR processing failed: {str(e)}")
+
+
+@app.post("/ocr/layout/tiles", response_model=OCRResponse)
+async def layout_only_tiles_endpoint(
+    file: UploadFile = File(...),
+    tiles: str = Form(...),  # JSON string of TileSpec[]
+    dpi: int = Form(300),
+    device: Literal["cpu", "cuda", "mps"] = Form("cuda"),
+):
+    """
+    Layout-only endpoint with tile-based processing.
+    - タイル単位でレイアウト解析を実行し、ページ座標に統合
+    """
+    import time
+    import json
+    start_time = time.time()
+
+    # バリデーション
+    validate_dpi(dpi)
+    validate_file_type(file.filename or "unknown", file.content_type or "")
+
+    # タイル仕様をパース
+    try:
+        tile_specs = json.loads(tiles)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid tiles JSON format")
+
+    # デバイスチェック
+    if device == "cuda" and not torch.cuda.is_available():
+        device = "mps" if torch.backends.mps.is_available() else "cpu"
+    elif device == "mps" and not torch.backends.mps.is_available():
+        device = "cpu"
+
+    global layout_analyzer
+    if layout_analyzer is None:
+        try:
+            layout_analyzer = LayoutAnalyzer(visualize=False, device=device)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to initialize LayoutAnalyzer: {str(e)}")
+
+    content = await file.read()
+    file_ext = Path(file.filename or "").suffix.lower()
+
+    try:
+        # 画像読み込み
+        if file_ext == ".pdf":
+            images = process_pdf_to_images(content, dpi=dpi)
+        else:
+            image = Image.open(io.BytesIO(content))
+            if image.mode != "RGB":
+                image = image.convert("RGB")
+            image = normalize_image_dpi(image, dpi)
+            images = [image]
+
+        # ページごとにタイルをグループ化
+        tiles_by_page = {}
+        for spec in tile_specs:
+            page_idx = spec["pageIndex"]
+            if page_idx not in tiles_by_page:
+                tiles_by_page[page_idx] = []
+            tiles_by_page[page_idx].append(spec)
+
+        # 各ページのタイルを処理
+        pages: list[Page] = []
+        for page_idx, img in enumerate(images):
+            if page_idx not in tiles_by_page:
+                continue
+
+            img_array = np.array(img)
+            page_width = img.width
+            page_height = img.height
+            
+            all_blocks: list[Block] = []
+            all_tables: list[Table] = []
+            all_figures: list[Figure] = []
+            
+            # 各タイルを処理
+            for tile_spec in tiles_by_page[page_idx]:
+                bbox_norm = tile_spec["bboxNormalized"]
+                
+                # 正規化座標をピクセルに変換
+                x_px = int(bbox_norm["x"] * page_width)
+                y_px = int(bbox_norm["y"] * page_height)
+                w_px = int(bbox_norm["w"] * page_width)
+                h_px = int(bbox_norm["h"] * page_height)
+                
+                # タイル画像をクロップ
+                tile_img = img_array[y_px:y_px+h_px, x_px:x_px+w_px]
+                
+                # レイアウト解析実行
+                loop = asyncio.get_event_loop()
+                tile_result = await loop.run_in_executor(
+                    executor, partial(run_module_once, layout_analyzer, tile_img)
+                )
+                
+                # タイル結果をページ座標にオフセット
+                # 注: yomitoku_result_to_pageには実際のタイルサイズを渡す（ピクセル座標で返される）
+                tile_page = yomitoku_result_to_page(
+                    tile_result,
+                    page_index=page_idx,
+                    dpi=dpi,
+                    width=w_px,
+                    height=h_px,
+                )
+                
+                # ブロックの座標をページ座標系に変換
+                for block in tile_page.blocks:
+                    # タイル内のピクセル座標をページのピクセル座標に変換してから正規化
+                    block.bbox.x = (block.bbox.x + x_px) / page_width
+                    block.bbox.y = (block.bbox.y + y_px) / page_height
+                    block.bbox.w = block.bbox.w / page_width
+                    block.bbox.h = block.bbox.h / page_height
+                    
+                    for line in block.lines:
+                        line.bbox.x = (line.bbox.x + x_px) / page_width
+                        line.bbox.y = (line.bbox.y + y_px) / page_height
+                        line.bbox.w = line.bbox.w / page_width
+                        line.bbox.h = line.bbox.h / page_height
+                        
+                        for token in line.tokens:
+                            token.bbox.x = (token.bbox.x + x_px) / page_width
+                            token.bbox.y = (token.bbox.y + y_px) / page_height
+                            token.bbox.w = token.bbox.w / page_width
+                            token.bbox.h = token.bbox.h / page_height
+                    
+                    all_blocks.append(block)
+                
+                # テーブルと図表も変換
+                if tile_page.tables:
+                    for table in tile_page.tables:
+                        table.bbox.x = (table.bbox.x + x_px) / page_width
+                        table.bbox.y = (table.bbox.y + y_px) / page_height
+                        table.bbox.w = table.bbox.w / page_width
+                        table.bbox.h = table.bbox.h / page_height
+                        
+                        for cell in table.cells:
+                            cell["bbox"]["x"] = (cell["bbox"]["x"] + x_px) / page_width
+                            cell["bbox"]["y"] = (cell["bbox"]["y"] + y_px) / page_height
+                            cell["bbox"]["w"] = cell["bbox"]["w"] / page_width
+                            cell["bbox"]["h"] = cell["bbox"]["h"] / page_height
+                        
+                        all_tables.append(table)
+                
+                if tile_page.figures:
+                    for figure in tile_page.figures:
+                        figure.bbox.x = (figure.bbox.x + x_px) / page_width
+                        figure.bbox.y = (figure.bbox.y + y_px) / page_height
+                        figure.bbox.w = figure.bbox.w / page_width
+                        figure.bbox.h = figure.bbox.h / page_height
+                        all_figures.append(figure)
+            
+            # タイル間の重複を除去
+            deduplicated_blocks = deduplicate_blocks_by_iou(all_blocks, iou_threshold=0.5)
+            
+            page = Page(
+                pageIndex=page_idx,
+                dpi=dpi,
+                widthPx=page_width,
+                heightPx=page_height,
+                blocks=deduplicated_blocks,
+                tables=all_tables if all_tables else None,
+                figures=all_figures if all_figures else None,
+                readingOrder=None,
+            )
+            pages.append(page)
+
+        processing_time = time.time() - start_time
+        return OCRResponse(pages=pages, processingTime=processing_time, model="yomitoku-layout-tiles")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Tile layout processing failed: {str(e)}")
+
+
+def deduplicate_blocks_by_iou(blocks: list[Block], iou_threshold: float = 0.5) -> list[Block]:
+    """
+    重複するブロックをIoUベースで除去。
+    信頼度が高い方、またはテキストが長い方を優先。
+    """
+    if len(blocks) <= 1:
+        return blocks
+    
+    # 信頼度でソート（高い順）
+    sorted_blocks = sorted(blocks, key=lambda b: (
+        sum(t.confidence or 0.0 for line in b.lines for t in line.tokens) / max(1, sum(len(line.tokens) for line in b.lines)),
+        len(b.text)
+    ), reverse=True)
+    
+    kept_blocks = []
+    for block in sorted_blocks:
+        # 既に保持されているブロックと重複チェック
+        is_duplicate = False
+        for kept in kept_blocks:
+            iou = calculate_bbox_iou(block.bbox, kept.bbox)
+            if iou > iou_threshold:
+                is_duplicate = True
+                break
+        
+        if not is_duplicate:
+            kept_blocks.append(block)
+    
+    return kept_blocks
+
+
+def calculate_bbox_iou(bbox1: BBox, bbox2: BBox) -> float:
+    """2つのBBoxのIoU（Intersection over Union）を計算"""
+    # 交差領域を計算
+    x1_inter = max(bbox1.x, bbox2.x)
+    y1_inter = max(bbox1.y, bbox2.y)
+    x2_inter = min(bbox1.x + bbox1.w, bbox2.x + bbox2.w)
+    y2_inter = min(bbox1.y + bbox1.h, bbox2.y + bbox2.h)
+    
+    if x2_inter <= x1_inter or y2_inter <= y1_inter:
+        return 0.0
+    
+    intersection = (x2_inter - x1_inter) * (y2_inter - y1_inter)
+    area1 = bbox1.w * bbox1.h
+    area2 = bbox2.w * bbox2.h
+    union = area1 + area2 - intersection
+    
+    return intersection / union if union > 0 else 0.0
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
