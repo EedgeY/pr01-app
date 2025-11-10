@@ -117,7 +117,9 @@ export async function detectFormFields(
         },
       ],
       response_format: { type: 'json_object' },
-      temperature: 0.1, // 低温度で一貫性を確保
+      temperature: 0.0, // 最低温度で座標の精度と一貫性を最大化
+      top_p: 1.0, // 確定的な出力のために明示的に設定
+      seed: 42, // 同じ入力に対して同じ出力を保証（サポートされている場合）
     });
 
     const content = response.choices[0]?.message?.content;

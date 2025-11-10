@@ -164,7 +164,11 @@ export function generatePlaceholder(field: DetectedField): string {
     return '03-1234-5678';
   }
 
-  if (label.includes('メール') || label.includes('mail') || label.includes('email')) {
+  if (
+    label.includes('メール') ||
+    label.includes('mail') ||
+    label.includes('email')
+  ) {
     return 'example@example.com';
   }
 
@@ -184,7 +188,11 @@ export function generatePlaceholder(field: DetectedField): string {
     return '平成5年4月1日';
   }
 
-  if (label.includes('会社') || label.includes('企業') || label.includes('法人')) {
+  if (
+    label.includes('会社') ||
+    label.includes('企業') ||
+    label.includes('法人')
+  ) {
     return '株式会社○○';
   }
 
@@ -196,7 +204,11 @@ export function generatePlaceholder(field: DetectedField): string {
     return '部長';
   }
 
-  if (label.includes('金額') || label.includes('料金') || label.includes('価格')) {
+  if (
+    label.includes('金額') ||
+    label.includes('料金') ||
+    label.includes('価格')
+  ) {
     return '10,000円';
   }
 
@@ -218,7 +230,11 @@ export function generatePlaceholder(field: DetectedField): string {
     return '○○支店';
   }
 
-  if (label.includes('備考') || label.includes('コメント') || label.includes('特記')) {
+  if (
+    label.includes('備考') ||
+    label.includes('コメント') ||
+    label.includes('特記')
+  ) {
     return '特になし';
   }
 
@@ -245,10 +261,10 @@ export function fieldsToTextSchemas(
       field.name || field.label,
       page
     );
-    
+
     // Set required flag from field
     schema.required = field.required;
-    
+
     return schema;
   });
 }
