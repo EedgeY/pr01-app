@@ -118,6 +118,12 @@ export interface DetectedField {
   type: 'text' | 'date' | 'address' | 'checkbox' | 'radio' | 'number' | 'seal';
   required: boolean;
   confidence: number;
+  segments?: Array<{
+    name: string;
+    bboxNormalized: { x: number; y: number; w: number; h: number };
+    placeholder?: string;
+  }>;
+  uiHint?: 'underlineSegments' | 'bracketed' | 'grouped' | 'tableCell' | 'free';
 }
 
 /**
@@ -253,7 +259,43 @@ export function fieldsToTextSchemas(
   fields: DetectedField[],
   page: { width: number; height: number } = A4_PORTRAIT_MM
 ): PdfmeTextSchema[] {
-  return fields.map((field) => {
+  const results: PdfmeTextSchema[] = [];
+
+  for (const field of fields) {
+    // セグメント化されたフィールドは各セグメントごとにスキーマ化
+    if (field.segments && field.segments.length > 0) {
+      for (const seg of field.segments) {
+        const segPlaceholder =
+          seg.placeholder ||
+          // セグメント名に応じた簡易プレースホルダー
+          (seg.name === 'zip3'
+            ? '000'
+            : seg.name === 'zip4'
+              ? '0000'
+              : seg.name === 'year'
+                ? '00'
+                : seg.name === 'month'
+                  ? '01'
+                  : seg.name === 'day'
+                    ? '01'
+                    : seg.name === 'era'
+                      ? '令和'
+                      : generatePlaceholder(field));
+        const schema = bboxToTextSchema(
+          seg.bboxNormalized,
+          segPlaceholder,
+          `${field.name}_${seg.name}`,
+          page
+        );
+        schema.required = field.required;
+        // 下線入力の見栄えを多少良くするためのヒント（下線は PDF 側にある前提）
+        schema.underline = false;
+        results.push(schema);
+      }
+      continue;
+    }
+
+    // 通常フィールド
     const placeholder = generatePlaceholder(field);
     const schema = bboxToTextSchema(
       field.bboxNormalized,
@@ -261,10 +303,9 @@ export function fieldsToTextSchemas(
       field.name || field.label,
       page
     );
-
-    // Set required flag from field
     schema.required = field.required;
+    results.push(schema);
+  }
 
-    return schema;
-  });
+  return results;
 }

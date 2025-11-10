@@ -8,6 +8,7 @@ import { openai, defaultModel, withRetry } from '../clients/openrouter';
 import {
   japaneseGovFormsSystemPrompt,
   japaneseGovFormsUserPromptTemplate,
+  japaneseGovFormsTwoSourcePromptTemplate,
 } from './prompts/japaneseGovForms';
 import type { NormalizedOcr, NormalizedBBox } from '../ocr/types';
 import { extractText } from '../ocr/normalizeYomiToku';
@@ -23,6 +24,21 @@ export interface DetectedField {
   type: 'text' | 'date' | 'address' | 'checkbox' | 'radio' | 'number' | 'seal';
   required: boolean;
   confidence: number; // 0..1
+  /**
+   * レイアウト適合のための細分化された入力セグメント。
+   * 例）日付欄の「年」「月」「日」、郵便番号の「3桁」「4桁」など。
+   * セグメントが存在する場合、bboxNormalized は親グループ全体の外接矩形、
+   * segments の各bboxNormalized が個別の入力位置を表す。
+   */
+  segments?: Array<{
+    name: string; // 例: year, month, day, zip3, zip4, era
+    bboxNormalized: NormalizedBBox;
+    placeholder?: string;
+  }>;
+  /**
+   * UIレンダリングのヒント。下線上入力・括弧内入力・グループ入力など。
+   */
+  uiHint?: 'underlineSegments' | 'bracketed' | 'grouped' | 'tableCell' | 'free';
   neighbors?: {
     left?: string;
     right?: string;
@@ -51,10 +67,23 @@ export interface DetectFormFieldsOptions {
   imagesByPage?: Record<number, string>;
   /** Page index hint for single-page detection (default: 0) */
   pageHint?: number;
+  /**
+   * text-only OCR結果（文字認識に特化）
+   * 指定された場合、textOcrとlayoutOcrの2ソースモードで検出を実行
+   */
+  textOcr?: NormalizedOcr;
+  /**
+   * layout-only OCR結果（レイアウト解析に特化）
+   * 指定された場合、textOcrとlayoutOcrの2ソースモードで検出を実行
+   */
+  layoutOcr?: NormalizedOcr;
 }
 
 /**
  * Detect form fields from normalized OCR
+ *
+ * @param ocr - 統合OCR結果（後方互換性のため保持、textOcr/layoutOcrが指定されていない場合に使用）
+ * @param options - 検出オプション（画像、2ソースOCRなど）
  */
 export async function detectFormFields(
   ocr: NormalizedOcr,
@@ -62,22 +91,56 @@ export async function detectFormFields(
 ): Promise<FieldDetectionResult> {
   const startTime = Date.now();
 
-  console.log(
-    '[FormFieldAgent] Starting detection for',
-    ocr.pages.length,
-    'pages'
-  );
+  // 2ソースモード（textOcr + layoutOcr）か単一ソースモードかを判定
+  const useTwoSourceMode = !!(options?.textOcr && options?.layoutOcr);
 
-  // OCRテキストを抽出
-  const ocrText = extractText(ocr);
-  console.log('[FormFieldAgent] Extracted text length:', ocrText.length);
+  if (useTwoSourceMode) {
+    console.log(
+      '[FormFieldAgent] Using TWO-SOURCE mode (text-only + layout-only)'
+    );
+    console.log(
+      '[FormFieldAgent] Text OCR pages:',
+      options.textOcr!.pages.length
+    );
+    console.log(
+      '[FormFieldAgent] Layout OCR pages:',
+      options.layoutOcr!.pages.length
+    );
+  } else {
+    console.log('[FormFieldAgent] Using SINGLE-SOURCE mode (unified OCR)');
+    console.log(
+      '[FormFieldAgent] Starting detection for',
+      ocr.pages.length,
+      'pages'
+    );
+  }
 
-  // レイアウト情報を構造化
-  const layoutInfo = formatLayoutInfo(ocr);
-  console.log('[FormFieldAgent] Layout info length:', layoutInfo.length);
+  // プロンプト構築
+  let userPrompt: string;
 
-  // LLMに送信
-  const userPrompt = japaneseGovFormsUserPromptTemplate(ocrText, layoutInfo);
+  if (useTwoSourceMode) {
+    // 2ソースモード: text-only と layout-only を分離して提示
+    const textOcrText = extractText(options.textOcr!);
+    const layoutInfo = formatLayoutInfo(options.layoutOcr!);
+
+    console.log('[FormFieldAgent] Text OCR text length:', textOcrText.length);
+    console.log('[FormFieldAgent] Layout info length:', layoutInfo.length);
+
+    userPrompt = japaneseGovFormsTwoSourcePromptTemplate(
+      textOcrText,
+      layoutInfo
+    );
+  } else {
+    // 単一ソースモード: 従来通り
+    const ocrText = extractText(ocr);
+    const layoutInfo = formatLayoutInfo(ocr);
+
+    console.log('[FormFieldAgent] Extracted text length:', ocrText.length);
+    console.log('[FormFieldAgent] Layout info length:', layoutInfo.length);
+
+    userPrompt = japaneseGovFormsUserPromptTemplate(ocrText, layoutInfo);
+  }
+
   console.log('[FormFieldAgent] User prompt length:', userPrompt.length);
 
   // 画像を取得（指定されたページ、なければ0ページ）
@@ -117,7 +180,7 @@ export async function detectFormFields(
         },
       ],
       response_format: { type: 'json_object' },
-      temperature: 0.0, // 最低温度で座標の精度と一貫性を最大化
+      temperature: 0.1, // 最低温度で座標の精度と一貫性を最大化
       top_p: 1.0, // 確定的な出力のために明示的に設定
       seed: 42, // 同じ入力に対して同じ出力を保証（サポートされている場合）
     });
@@ -153,11 +216,16 @@ export async function detectFormFields(
 
   const processingTime = Date.now() - startTime;
 
+  // ページ数は2ソースモードの場合はlayoutOcrを優先、なければocr
+  const pageCount = useTwoSourceMode
+    ? options.layoutOcr!.pages.length
+    : ocr.pages.length;
+
   return {
     fields,
     metadata: {
       totalFields: fields.length,
-      pageCount: ocr.pages.length,
+      pageCount,
       processingTime,
     },
   };

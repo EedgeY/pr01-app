@@ -14,7 +14,7 @@ export const openai = new OpenAI({
   },
 });
 
-export const defaultModel = 'google/gemini-2.5-flash-preview-09-2025';
+export const defaultModel = 'google/gemini-2.5-pro';
 
 // レート制限対応のリトライヘルパー
 export async function withRetry<T>(
