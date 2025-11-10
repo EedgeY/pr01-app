@@ -35,9 +35,9 @@ export default function OcrViewerPage() {
     type: 'block' | 'table' | 'figure' | 'field';
     index: number;
   } | null>(null);
-  const [activeTab, setActiveTab] = useState<'blocks' | 'tables' | 'figures' | 'fields'>(
-    'blocks'
-  );
+  const [activeTab, setActiveTab] = useState<
+    'blocks' | 'tables' | 'figures' | 'fields'
+  >('blocks');
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // PDFから画像URLを生成するヘルパー関数
@@ -733,7 +733,11 @@ export default function OcrViewerPage() {
                         <div className='flex items-center justify-center gap-2'>
                           🤖 AI Fields
                           <span className='text-xs bg-purple-500 text-white px-2 py-0.5 rounded-full'>
-                            {detectedFields.filter(f => f.pageIndex === selectedPage).length}
+                            {
+                              detectedFields.filter(
+                                (f) => f.pageIndex === selectedPage
+                              ).length
+                            }
                           </span>
                         </div>
                       </button>
@@ -876,9 +880,11 @@ export default function OcrViewerPage() {
                       {/* Fields Tab */}
                       {activeTab === 'fields' && (
                         <div className='space-y-2'>
-                          {detectedFields.filter(f => f.pageIndex === selectedPage).length > 0 ? (
+                          {detectedFields.filter(
+                            (f) => f.pageIndex === selectedPage
+                          ).length > 0 ? (
                             detectedFields
-                              .filter(f => f.pageIndex === selectedPage)
+                              .filter((f) => f.pageIndex === selectedPage)
                               .map((field, idx) => {
                                 const isSelected =
                                   selectedBlock?.type === 'field' &&
@@ -904,7 +910,9 @@ export default function OcrViewerPage() {
                                       </span>
                                       <div className='flex-1 min-w-0'>
                                         <div className='flex items-center gap-2 mb-1'>
-                                          <span className='font-medium text-sm'>{field.label}</span>
+                                          <span className='font-medium text-sm'>
+                                            {field.label}
+                                          </span>
                                           <span className='text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full'>
                                             {field.type}
                                           </span>
@@ -915,10 +923,25 @@ export default function OcrViewerPage() {
                                           )}
                                         </div>
                                         <div className='text-xs text-muted-foreground space-y-1'>
-                                          <div>キー: <code className='bg-muted px-1 py-0.5 rounded'>{field.name}</code></div>
-                                          <div>信頼度: {(field.confidence * 100).toFixed(0)}%</div>
+                                          <div>
+                                            キー:{' '}
+                                            <code className='bg-muted px-1 py-0.5 rounded'>
+                                              {field.name}
+                                            </code>
+                                          </div>
+                                          <div>
+                                            信頼度:{' '}
+                                            {(field.confidence * 100).toFixed(
+                                              0
+                                            )}
+                                            %
+                                          </div>
                                           <div className='font-mono text-[10px]'>
-                                            bbox: [{field.bboxNormalized.x.toFixed(3)}, {field.bboxNormalized.y.toFixed(3)}, {field.bboxNormalized.w.toFixed(3)}, {field.bboxNormalized.h.toFixed(3)}]
+                                            bbox: [
+                                            {field.bboxNormalized.x.toFixed(3)},{' '}
+                                            {field.bboxNormalized.y.toFixed(3)},{' '}
+                                            {field.bboxNormalized.w.toFixed(3)},{' '}
+                                            {field.bboxNormalized.h.toFixed(3)}]
                                           </div>
                                         </div>
                                       </div>
