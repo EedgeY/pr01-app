@@ -5,7 +5,6 @@ const nextConfig = {
     '@workspace/ui',
     '@workspace/auth',
     '@workspace/db',
-    '@workspace/stripe',
   ],
   serverComponentsExternalPackages: ['server-only'],
   images: {

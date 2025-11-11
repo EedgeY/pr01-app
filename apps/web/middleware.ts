@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 // 保護されたルート（認証が必要）
-const protectedRoutes = ['/dashboard'];
+const protectedRoutes = ['/ocr-viewer'];
 
 // 認証済みユーザーがアクセスできないルート
 const authRoutes = ['/sign-in', '/sign-up'];

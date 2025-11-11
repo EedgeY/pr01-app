@@ -9,7 +9,7 @@ import { Button } from '@workspace/ui/components/button';
 export default function SignUpPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get('next') ?? '/articles/new';
+  const next = searchParams.get('next') ?? '/ocr-viewer';
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

@@ -1,6 +1,6 @@
 /**
  * YomiToku output normalization
- * 
+ *
  * Converts raw YomiToku OCR output to normalized schema with DPI-independent coordinates
  */
 
@@ -23,10 +23,8 @@ export function normalizeOcrResponse(
   raw: RawOcrResponse,
   sourceFormat: string = 'unknown'
 ): NormalizedOcr {
-  const pages = raw.pages.map((rawPage) =>
-    normalizePage(rawPage, raw.model)
-  );
-  
+  const pages = raw.pages.map((rawPage) => normalizePage(rawPage, raw.model));
+
   return {
     pages,
     metadata: {
@@ -45,7 +43,7 @@ function normalizePage(
   model: string
 ): NormalizedPage {
   const { widthPx, heightPx } = rawPage;
-  
+
   // Normalize blocks
   const blocks: NormalizedBlock[] = rawPage.blocks.map((rawBlock) => ({
     text: rawBlock.text,
@@ -61,7 +59,7 @@ function normalizePage(
       })),
     })),
   }));
-  
+
   // Normalize tables
   const tables: NormalizedTable[] | undefined = rawPage.tables?.map(
     (rawTable) => ({
@@ -80,7 +78,7 @@ function normalizePage(
       })),
     })
   );
-  
+
   // Normalize figures
   const figures: NormalizedFigure[] | undefined = rawPage.figures?.map(
     (rawFigure) => ({
@@ -88,7 +86,7 @@ function normalizePage(
       figureType: rawFigure.figureType,
     })
   );
-  
+
   return {
     pageIndex: rawPage.pageIndex,
     dpi: rawPage.dpi,
@@ -106,19 +104,19 @@ function normalizePage(
  */
 export function extractText(ocr: NormalizedOcr): string {
   const texts: string[] = [];
-  
+
   for (const page of ocr.pages) {
     const blocks = page.readingOrder
       ? page.readingOrder.map((idx) => page.blocks[idx])
       : page.blocks;
-    
+
     for (const block of blocks) {
-      if (block.text.trim()) {
+      if (block?.text?.trim()) {
         texts.push(block.text);
       }
     }
   }
-  
+
   return texts.join('\n\n');
 }
 
@@ -129,8 +127,8 @@ export function extractPageText(page: NormalizedPage): string {
   const blocks = page.readingOrder
     ? page.readingOrder.map((idx) => page.blocks[idx])
     : page.blocks;
-  
-  return blocks.map((block) => block.text).join('\n\n');
+
+  return blocks.map((block) => block?.text).join('\n\n');
 }
 
 /**
@@ -143,16 +141,16 @@ export function findNearbyBlocks(
 ): NormalizedBlock[] {
   const targetCenterX = targetBBox.x + targetBBox.w / 2;
   const targetCenterY = targetBBox.y + targetBBox.h / 2;
-  
+
   return page.blocks.filter((block) => {
     const blockCenterX = block.bbox.x + block.bbox.w / 2;
     const blockCenterY = block.bbox.y + block.bbox.h / 2;
-    
+
     const distance = Math.sqrt(
       Math.pow(blockCenterX - targetCenterX, 2) +
         Math.pow(blockCenterY - targetCenterY, 2)
     );
-    
+
     return distance <= maxDistance;
   });
 }
@@ -165,32 +163,32 @@ export function groupBlocksByRow(
   tolerance: number = 0.01
 ): NormalizedBlock[][] {
   if (blocks.length === 0) return [];
-  
+
   // Sort by y position
   const sorted = [...blocks].sort((a, b) => a.bbox.y - b.bbox.y);
-  
+
   const rows: NormalizedBlock[][] = [];
-  let currentRow: NormalizedBlock[] = [sorted[0]];
-  let currentY = sorted[0].bbox.y;
-  
+  let currentRow: NormalizedBlock[] = [sorted[0]!];
+  let currentY = sorted[0]!.bbox.y;
+
   for (let i = 1; i < sorted.length; i++) {
     const block = sorted[i];
-    
-    if (Math.abs(block.bbox.y - currentY) <= tolerance) {
+
+    if (Math.abs(block?.bbox.y ?? 0 - currentY) <= tolerance) {
       // Same row
-      currentRow.push(block);
+      currentRow.push(block!);
     } else {
       // New row
       rows.push(currentRow);
-      currentRow = [block];
-      currentY = block.bbox.y;
+      currentRow = [block!];
+      currentY = block?.bbox.y ?? 0;
     }
   }
-  
+
   if (currentRow.length > 0) {
     rows.push(currentRow);
   }
-  
+
   return rows;
 }
 
@@ -210,33 +208,36 @@ export function chunkOcrForLLM(
     text: string;
     estimatedTokens: number;
   }> = [];
-  
+
   let currentPages: NormalizedPage[] = [];
   let currentText = '';
   let currentTokens = 0;
-  
+
   for (const page of ocr.pages) {
     const pageText = extractPageText(page);
     const pageTokens = estimateTokens(pageText);
-    
-    if (currentTokens + pageTokens > maxTokensPerChunk && currentPages.length > 0) {
+
+    if (
+      currentTokens + pageTokens > maxTokensPerChunk &&
+      currentPages.length > 0
+    ) {
       // Flush current chunk
       chunks.push({
         pages: currentPages,
         text: currentText,
         estimatedTokens: currentTokens,
       });
-      
+
       currentPages = [];
       currentText = '';
       currentTokens = 0;
     }
-    
+
     currentPages.push(page);
     currentText += (currentText ? '\n\n---\n\n' : '') + pageText;
     currentTokens += pageTokens;
   }
-  
+
   if (currentPages.length > 0) {
     chunks.push({
       pages: currentPages,
@@ -244,7 +245,7 @@ export function chunkOcrForLLM(
       estimatedTokens: currentTokens,
     });
   }
-  
+
   return chunks;
 }
 
@@ -254,7 +255,3 @@ export function chunkOcrForLLM(
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
-
-
-
-

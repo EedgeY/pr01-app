@@ -9,7 +9,7 @@ import { Button } from '@workspace/ui/components/button';
 export default function SignInPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get('next') ?? '/articles/new';
+  const next = searchParams.get('next') ?? '/ocr-viewer';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
