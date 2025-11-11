@@ -8,6 +8,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { detectFormFields } from '@workspace/ai';
 import { fieldsToTextSchemas } from '@workspace/ai/src/ocr';
 import type { NormalizedOcr } from '@workspace/ai/src/ocr/types';
+import path from 'path';
+import { mkdir, writeFile } from 'fs/promises';
 
 export const runtime = 'nodejs';
 
@@ -81,6 +83,34 @@ export async function POST(request: NextRequest) {
 
     // Convert detected fields to pdfme TextSchema
     const pdfmeSchemas = fieldsToTextSchemas(result.fields);
+
+    // Save LLM result to public/llm-out for inspection (dev utility)
+    try {
+      const outDir = path.join(process.cwd(), 'public', 'llm-out');
+      await mkdir(outDir, { recursive: true });
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const mode = useTwoSourceMode ? 'two-source' : 'single';
+      const filename = `llm-fields-${mode}-page${pageHint}-${timestamp}.json`;
+      const outPath = path.join(outDir, filename);
+      const payload = {
+        mode,
+        page: pageHint,
+        counts: {
+          fields: result.fields.length,
+          pages: result.metadata?.pageCount,
+        },
+        metadata: result.metadata,
+        fields: result.fields,
+        // image presence only flag to avoid huge files
+        hasImage: Boolean(image),
+        createdAt: new Date().toISOString(),
+      };
+      await writeFile(outPath, JSON.stringify(payload, null, 2), 'utf-8');
+      console.log('[Detect Fields API] LLM output saved:', outPath);
+    } catch (saveErr) {
+      // Non-fatal: continue response even if saving fails (e.g., read-only FS)
+      console.warn('[Detect Fields API] Failed to save LLM output:', saveErr);
+    }
 
     return NextResponse.json({
       fields: result.fields,
