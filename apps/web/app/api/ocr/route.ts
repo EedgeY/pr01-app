@@ -1,6 +1,6 @@
 /**
  * OCR API Route
- * 
+ *
  * Handles file upload, calls OCR service, and returns normalized results
  */
 
@@ -32,10 +32,14 @@ async function fetchWithRetry(
   try {
     return await fetch(url, options);
   } catch (error) {
-    if (retries > 0 && error instanceof Error && 
-        ('code' in error && (error as any).code === 'ECONNREFUSED')) {
+    if (
+      retries > 0 &&
+      error instanceof Error &&
+      'code' in error &&
+      (error as any).code === 'ECONNREFUSED'
+    ) {
       // OCRサービスが起動中の可能性があるため、リトライ
-      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
       return fetchWithRetry(url, options, retries - 1);
     }
     throw error;
@@ -52,10 +56,7 @@ export async function POST(request: NextRequest) {
     const lite = formData.get('lite') as string | null;
 
     if (!file) {
-      return NextResponse.json(
-        { error: 'No file provided' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
     // ファイルサイズチェック
@@ -109,28 +110,38 @@ export async function POST(request: NextRequest) {
 
     // 正規化
     const normalizedOcr = normalizeOcrResponse(rawOcr, sourceFormat);
-    
+
     console.log('[OCR API] Normalized OCR:', {
       pages: normalizedOcr.pages.length,
-      totalBlocks: normalizedOcr.pages.reduce((sum, p) => sum + p.blocks.length, 0),
-      firstPageSize: normalizedOcr.pages[0] ? `${normalizedOcr.pages[0].widthPx}x${normalizedOcr.pages[0].heightPx}` : 'N/A',
+      totalBlocks: normalizedOcr.pages.reduce(
+        (sum, p) => sum + p.blocks.length,
+        0
+      ),
+      firstPageSize: normalizedOcr.pages[0]
+        ? `${normalizedOcr.pages[0].widthPx}x${normalizedOcr.pages[0].heightPx}`
+        : 'N/A',
     });
 
     return NextResponse.json(normalizedOcr);
   } catch (error) {
     console.error('OCR API error:', error);
-    
+
     // 接続エラーの場合は特別なメッセージを返す
-    if (error instanceof Error && 'code' in error && (error as any).code === 'ECONNREFUSED') {
+    if (
+      error instanceof Error &&
+      'code' in error &&
+      (error as any).code === 'ECONNREFUSED'
+    ) {
       return NextResponse.json(
         {
           error: 'OCRサービスに接続できません',
-          details: 'OCRサービスが起動していないか、起動中です。しばらく待ってから再度お試しください。',
+          details:
+            'OCRサービスが起動していないか、起動中です。しばらく待ってから再度お試しください。',
         },
         { status: 503 }
       );
     }
-    
+
     return NextResponse.json(
       {
         error: 'Internal server error',
@@ -171,4 +182,3 @@ export async function GET() {
     );
   }
 }
-

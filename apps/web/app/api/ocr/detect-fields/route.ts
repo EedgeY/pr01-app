@@ -16,12 +16,17 @@ export const runtime = 'nodejs';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { ocr, textOcr, layoutOcr, image, page } = body as {
+    const { ocr, textOcr, layoutOcr, image, page, segmentIndex, segmentConstraint } = body as {
       ocr?: NormalizedOcr;
       textOcr?: NormalizedOcr;
       layoutOcr?: NormalizedOcr;
       image?: string;
       page?: number;
+      segmentIndex?: number;
+      segmentConstraint?: {
+        pageIndex: number;
+        bboxNormalized: { x: number; y: number; w: number; h: number };
+      };
     };
 
     // 2ソースモード（textOcr + layoutOcr）または単一ソースモード（ocr）のいずれかが必要
@@ -72,6 +77,7 @@ export async function POST(request: NextRequest) {
         ? { imagesByPage: { [pageHint]: image }, pageHint }
         : { pageHint }),
       ...(useTwoSourceMode ? { textOcr, layoutOcr } : {}),
+      ...(segmentConstraint ? { segmentConstraint } : {}),
     };
 
     // Call LLM to detect fields
@@ -84,32 +90,77 @@ export async function POST(request: NextRequest) {
     // Convert detected fields to pdfme TextSchema
     const pdfmeSchemas = fieldsToTextSchemas(result.fields);
 
-    // Save LLM result to public/llm-out for inspection (dev utility)
+    // Save LLM debugging data (dev utility)
     try {
-      const outDir = path.join(process.cwd(), 'public', 'llm-out');
-      await mkdir(outDir, { recursive: true });
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const mode = useTwoSourceMode ? 'two-source' : 'single';
-      const filename = `llm-fields-${mode}-page${pageHint}-${timestamp}.json`;
-      const outPath = path.join(outDir, filename);
+      const segmentSuffix = segmentIndex !== undefined ? `-seg${segmentIndex}` : '';
+      const baseFilename = `llm-${mode}-page${pageHint}${segmentSuffix}-${timestamp}`;
+
+      // 1. Save LLM output (result)
+      const outDir = path.join(process.cwd(), 'public', 'llm-out');
+      await mkdir(outDir, { recursive: true });
+      const outFilename = `llm-fields-${mode}-page${pageHint}${segmentSuffix}-${timestamp}.json`;
+      const outPath = path.join(outDir, outFilename);
       const payload = {
         mode,
         page: pageHint,
+        segmentIndex: segmentIndex !== undefined ? segmentIndex : null,
         counts: {
           fields: result.fields.length,
           pages: result.metadata?.pageCount,
         },
         metadata: result.metadata,
         fields: result.fields,
-        // image presence only flag to avoid huge files
         hasImage: Boolean(image),
         createdAt: new Date().toISOString(),
       };
       await writeFile(outPath, JSON.stringify(payload, null, 2), 'utf-8');
       console.log('[Detect Fields API] LLM output saved:', outPath);
+
+      // 2. Save LLM input image
+      if (image) {
+        const imageDir = path.join(process.cwd(), 'public', 'llm-image');
+        await mkdir(imageDir, { recursive: true });
+        
+        // Base64画像をデコードして保存
+        const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
+        const buffer = Buffer.from(base64Data, 'base64');
+        
+        // 画像形式を判定（デフォルトはpng）
+        const imageFormat = image.match(/^data:image\/(\w+);base64,/)?.[1] || 'png';
+        const imageFilename = `${baseFilename}.${imageFormat}`;
+        const imagePath = path.join(imageDir, imageFilename);
+        
+        await writeFile(imagePath, buffer);
+        console.log('[Detect Fields API] LLM input image saved:', imagePath);
+      }
+
+      // 3. Save LLM input OCR parameters
+      const paramDir = path.join(process.cwd(), 'public', 'llm-param');
+      await mkdir(paramDir, { recursive: true });
+      const paramFilename = `${baseFilename}.json`;
+      const paramPath = path.join(paramDir, paramFilename);
+      
+      const paramPayload = {
+        mode,
+        page: pageHint,
+        segmentIndex: segmentIndex !== undefined ? segmentIndex : null,
+        hasImage: Boolean(image),
+        segmentConstraint: segmentConstraint ?? null,
+        createdAt: new Date().toISOString(),
+        // OCRデータを保存（画像は除外）
+        ocr: useTwoSourceMode ? undefined : ocr,
+        textOcr: useTwoSourceMode ? textOcr : undefined,
+        layoutOcr: useTwoSourceMode ? layoutOcr : undefined,
+      };
+      
+      await writeFile(paramPath, JSON.stringify(paramPayload, null, 2), 'utf-8');
+      console.log('[Detect Fields API] LLM input params saved:', paramPath);
+
     } catch (saveErr) {
       // Non-fatal: continue response even if saving fails (e.g., read-only FS)
-      console.warn('[Detect Fields API] Failed to save LLM output:', saveErr);
+      console.warn('[Detect Fields API] Failed to save LLM debug data:', saveErr);
     }
 
     return NextResponse.json({

@@ -42,3 +42,11 @@ npm-debug.log*
 local.db
 local.db-shm
 local.db-wal
+
+# LLM Debug Files
+apps/web/public/llm-out/*.json
+apps/web/public/llm-image/*
+apps/web/public/llm-param/*.json
+!apps/web/public/llm-out/.gitkeep
+!apps/web/public/llm-image/.gitkeep
+!apps/web/public/llm-param/.gitkeep

@@ -1,7 +1,8 @@
 /**
- * OCR-only API Route
+ * OCR-only Tiles API Route
  *
- * Forwards file uploads to OCR service (/ocr/ocr-only) and returns normalized results.
+ * Forwards tile-based OCR requests to OCR service and returns normalized results.
+ * Tiles allow processing specific regions (segments) of pages.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -40,11 +41,32 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
+    const tiles = formData.get('tiles') as string | null;
     const dpi = formData.get('dpi') as string | null;
     const device = formData.get('device') as string | null;
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    }
+
+    if (!tiles) {
+      return NextResponse.json({ error: 'No tiles provided' }, { status: 400 });
+    }
+
+    // Validate tiles JSON
+    try {
+      const parsed = JSON.parse(tiles);
+      if (!Array.isArray(parsed)) {
+        throw new Error('Tiles must be an array');
+      }
+    } catch (err) {
+      return NextResponse.json(
+        {
+          error: 'Invalid tiles JSON format',
+          details: err instanceof Error ? err.message : 'Unknown error',
+        },
+        { status: 400 }
+      );
     }
 
     if (file.size > MAX_FILE_SIZE) {
@@ -69,11 +91,18 @@ export async function POST(request: NextRequest) {
 
     const ocrFormData = new FormData();
     ocrFormData.append('file', file);
-    ocrFormData.append('dpi', dpi || '300');
+    ocrFormData.append('tiles', tiles);
+    ocrFormData.append('dpi', dpi || '72');
     ocrFormData.append('device', device || 'cpu');
 
+    console.log(
+      '[OCR Tiles API] Sending request to OCR service with',
+      JSON.parse(tiles).length,
+      'tiles'
+    );
+
     const ocrResponse = await fetchWithRetry(
-      `${OCR_SERVICE_URL}/ocr/ocr-only`,
+      `${OCR_SERVICE_URL}/ocr/ocr-only/tiles`,
       {
         method: 'POST',
         body: ocrFormData,
@@ -82,9 +111,9 @@ export async function POST(request: NextRequest) {
 
     if (!ocrResponse.ok) {
       const errorText = await ocrResponse.text();
-      console.error('OCR-only service error:', errorText);
+      console.error('OCR-only tiles service error:', errorText);
       return NextResponse.json(
-        { error: 'OCR-only processing failed', details: errorText },
+        { error: 'OCR-only tiles processing failed', details: errorText },
         { status: 500 }
       );
     }
@@ -93,6 +122,12 @@ export async function POST(request: NextRequest) {
 
     const sourceFormat = file.type.split('/')[1] || 'unknown';
     const normalizedOcr = normalizeOcrResponse(rawOcr, sourceFormat);
+
+    console.log(
+      '[OCR Tiles API] Normalized OCR with',
+      normalizedOcr.pages.length,
+      'pages'
+    );
 
     return NextResponse.json(normalizedOcr);
   } catch (error) {
@@ -111,36 +146,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.error('[OCR Tiles API] Error:', error);
     return NextResponse.json(
       {
         error: 'Internal server error',
         details: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
-    );
-  }
-}
-
-export async function GET() {
-  try {
-    const response = await fetchWithRetry(`${OCR_SERVICE_URL}/health`, {
-      method: 'GET',
-    });
-    if (!response.ok) {
-      return NextResponse.json(
-        { status: 'unhealthy', service: 'ocr-service' },
-        { status: 503 }
-      );
-    }
-    const health = await response.json();
-    return NextResponse.json({ status: 'ok', ocrService: health });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        status: 'unhealthy',
-        error: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 503 }
     );
   }
 }

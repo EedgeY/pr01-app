@@ -68,6 +68,14 @@ export interface DetectFormFieldsOptions {
   /** Page index hint for single-page detection (default: 0) */
   pageHint?: number;
   /**
+   * セグメント制約: 指定された場合、出力bboxはこの範囲に完全に収まるように制限される
+   * 座標はページ全体に対する正規化座標 [0,1]
+   */
+  segmentConstraint?: {
+    pageIndex: number;
+    bboxNormalized: NormalizedBBox;
+  };
+  /**
    * text-only OCR結果（文字認識に特化）
    * 指定された場合、textOcrとlayoutOcrの2ソースモードで検出を実行
    */
@@ -141,6 +149,27 @@ export async function detectFormFields(
     userPrompt = japaneseGovFormsUserPromptTemplate(ocrText, layoutInfo);
   }
 
+  // セグメント制約がある場合、ユーザープロンプトに厳格な範囲制約を付与
+  if (options?.segmentConstraint) {
+    const seg = options.segmentConstraint;
+    const sx = seg.bboxNormalized.x.toFixed(3);
+    const sy = seg.bboxNormalized.y.toFixed(3);
+    const sw = seg.bboxNormalized.w.toFixed(3);
+    const sh = seg.bboxNormalized.h.toFixed(3);
+    userPrompt += `
+
+# セグメント制約（厳守）
+- 対象ページ: ${seg.pageIndex}
+- セグメントbboxNormalized: (x:${sx}, y:${sy}, w:${sw}, h:${sh})
+- すべての出力フィールドのbboxNormalizedは、このセグメント矩形に**完全に収まる**こと。
+  - x >= seg.x, y >= seg.y
+  - x + w <= seg.x + seg.w
+  - y + h <= seg.y + seg.h
+- 特に幅(w)は**seg.w以下**に制限すること（セグメントの外へはみ出す幅を生成しない）。
+- 親フィールドのsegmentsを出力する場合も、各segmentのbboxNormalizedをこの範囲内に**必ず**制限すること。
+- 不明な場合はセグメント内の空白・罫線・括弧・表セルの要素のみに限定して検出せよ。`;
+  }
+
   console.log('[FormFieldAgent] User prompt length:', userPrompt.length);
 
   // 画像を取得（指定されたページ、なければ0ページ）
@@ -211,8 +240,17 @@ export async function detectFormFields(
     return parsed;
   });
 
-  const fields: DetectedField[] = result.fields || [];
+  // 返却フィールド
+  let fields: DetectedField[] = result.fields || [];
   console.log('[FormFieldAgent] Final fields count:', fields.length);
+
+  // セグメント制約がある場合、出力bboxをセグメント範囲にクリップ（はみ出し防止の最終防衛線）
+  if (options?.segmentConstraint) {
+    const seg = options.segmentConstraint;
+    fields = fields
+      .map((field) => clampFieldToSegment(field, seg))
+      .filter((field) => isFieldInsideSegment(field, seg));
+  }
 
   const processingTime = Date.now() - startTime;
 
@@ -296,6 +334,65 @@ function formatLayoutInfo(ocr: NormalizedOcr): string {
   }
 
   return lines.join('\n');
+}
+
+/**
+ * フィールドbboxおよび子segmentsのbboxをセグメント範囲にクリップする
+ */
+function clampFieldToSegment(
+  field: DetectedField,
+  seg: { pageIndex: number; bboxNormalized: NormalizedBBox }
+): DetectedField {
+  const clampedFieldBbox = clampBBoxToSegment(field.bboxNormalized, seg.bboxNormalized);
+  const clampedSegments =
+    field.segments?.map((s) => ({
+      ...s,
+      bboxNormalized: clampBBoxToSegment(s.bboxNormalized, seg.bboxNormalized),
+    })) ?? field.segments;
+
+  return {
+    ...field,
+    bboxNormalized: clampedFieldBbox,
+    segments: clampedSegments,
+  };
+}
+
+/**
+ * bboxをセグメント矩形にクリップする（正規化座標 [0,1]）
+ */
+function clampBBoxToSegment(
+  bbox: NormalizedBBox,
+  segBBox: NormalizedBBox
+): NormalizedBBox {
+  const segRight = segBBox.x + segBBox.w;
+  const segBottom = segBBox.y + segBBox.h;
+  const right = bbox.x + bbox.w;
+  const bottom = bbox.y + bbox.h;
+
+  const x = Math.max(bbox.x, segBBox.x);
+  const y = Math.max(bbox.y, segBBox.y);
+  const x2 = Math.min(right, segRight);
+  const y2 = Math.min(bottom, segBottom);
+
+  const w = Math.max(0, x2 - x);
+  const h = Math.max(0, y2 - y);
+
+  return { x, y, w, h };
+}
+
+/**
+ * フィールドがセグメント範囲内に実質的に収まっているかを確認
+ */
+function isFieldInsideSegment(
+  field: DetectedField,
+  seg: { pageIndex: number; bboxNormalized: NormalizedBBox }
+): boolean {
+  const b = field.bboxNormalized;
+  const s = seg.bboxNormalized;
+  if (b.w <= 0 || b.h <= 0) return false;
+  const withinX = b.x >= s.x && b.x + b.w <= s.x + s.w;
+  const withinY = b.y >= s.y && b.y + b.h <= s.y + s.h;
+  return withinX && withinY;
 }
 
 /**

@@ -8,7 +8,10 @@ import { FieldSchemaDetectButton } from './_components/FieldSchemaDetectButton';
 import { FileUploadSection } from './_components/FileUploadSection';
 import { OcrCanvas } from './_components/OcrCanvas';
 import { ContentTabs } from './_components/ContentTabs';
+import { SegmentEditor } from './_components/SegmentEditor';
+import { SegmentRunPanel } from './_components/SegmentRunPanel';
 import { usePdfPreview } from './_hooks/usePdfPreview';
+import { useSegments } from './_hooks/useSegments';
 
 export default function OcrViewerPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -16,7 +19,7 @@ export default function OcrViewerPage() {
   const [ocr, setOcr] = useState<NormalizedOcr | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedPage, setSelectedPage] = useState(0);
-  const [mode, setMode] = useState<'ocr' | 'layout'>('ocr');
+  const [mode, setMode] = useState<'ocr' | 'layout' | 'segment'>('ocr');
   const [showBlocks, setShowBlocks] = useState(true);
   const [showTables, setShowTables] = useState(true);
   const [showFigures, setShowFigures] = useState(true);
@@ -33,6 +36,18 @@ export default function OcrViewerPage() {
   // PDF preview hook
   const { imageUrls, generatePreview, clearPreview } = usePdfPreview();
 
+  // Segments hook
+  const {
+    segments,
+    results,
+    selectedSegmentId,
+    addSegment,
+    updateSegment,
+    deleteSegment,
+    selectSegment,
+    updateResult,
+  } = useSegments();
+
   const handleFileChange = async (selectedFile: File | null) => {
     if (selectedFile) {
       setFile(selectedFile);
@@ -40,6 +55,20 @@ export default function OcrViewerPage() {
       setError(null);
       setDetectedFields([]);
       clearPreview();
+
+      // セグメントモードの場合は即座にプレビューを生成
+      if (mode === 'segment') {
+        await generatePreview(selectedFile);
+      }
+    }
+  };
+
+  const handleModeChange = async (newMode: 'ocr' | 'layout' | 'segment') => {
+    setMode(newMode);
+
+    // セグメントモードに切り替えた場合、ファイルがあればプレビューを生成
+    if (newMode === 'segment' && file && imageUrls.length === 0) {
+      await generatePreview(file);
     }
   };
 
@@ -97,7 +126,7 @@ export default function OcrViewerPage() {
           loading={loading}
           mode={mode}
           onFileChange={handleFileChange}
-          onModeChange={setMode}
+          onModeChange={handleModeChange}
           onUpload={handleUpload}
         />
 
@@ -123,7 +152,61 @@ export default function OcrViewerPage() {
           </div>
         )}
 
-        {ocr && (
+        {/* Segment Mode UI */}
+        {mode === 'segment' && file && imageUrls.length > 0 && (
+          <>
+            {/* Page Selector for Segment Mode */}
+            <div className=' mb-4'>
+              <div className='flex items-center gap-3'>
+                <label className='text-sm font-medium'>ページ選択:</label>
+                <select
+                  value={selectedPage}
+                  onChange={(e) => setSelectedPage(Number(e.target.value))}
+                  className='border border-input rounded-md px-3 py-1.5 text-sm bg-background'
+                >
+                  {imageUrls.map((_, idx) => (
+                    <option key={idx} value={idx}>
+                      {idx + 1} / {imageUrls.length}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className='grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6'>
+              {/* Left: Segment Editor */}
+              <div className='lg:col-span-2'>
+                {imageUrls[selectedPage] && (
+                  <SegmentEditor
+                    imageUrl={imageUrls[selectedPage]!}
+                    pageIndex={selectedPage}
+                    segments={segments}
+                    selectedId={selectedSegmentId}
+                    results={results}
+                    onSegmentAdd={addSegment}
+                    onSegmentUpdate={updateSegment}
+                    onSegmentSelect={selectSegment}
+                  />
+                )}
+              </div>
+
+              {/* Right: Segment Run Panel */}
+              <div className='lg:col-span-1'>
+                <SegmentRunPanel
+                  file={file}
+                  segments={segments}
+                  results={results}
+                  onResultUpdate={updateResult}
+                  onSegmentSelect={selectSegment}
+                  selectedId={selectedSegmentId}
+                  onSegmentDelete={deleteSegment}
+                />
+              </div>
+            </div>
+          </>
+        )}
+
+        {ocr && mode !== 'segment' && (
           <div className='bg-card text-card-foreground rounded-lg border p-5 mb-6'>
             <div className='flex flex-col gap-4 mb-6'>
               <div className='flex items-center justify-between flex-wrap gap-3'>
