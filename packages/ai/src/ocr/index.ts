@@ -7,6 +7,8 @@ export * from './geometry';
 export * from './normalizeYomiToku';
 export * from './pdfme';
 export * from './tiling';
+export * from './segmentPdf';
+export * from './merge';
 
 
 

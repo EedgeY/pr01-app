@@ -9,7 +9,9 @@
     "./tools": "./src/tools/index.ts",
     "./clients": "./src/clients/openrouter.ts",
     "./src/ocr": "./src/ocr/index.ts",
-    "./src/ocr/types": "./src/ocr/types.ts"
+    "./src/ocr/types": "./src/ocr/types.ts",
+    "./src/ocr/segmentPdf": "./src/ocr/segmentPdf.ts",
+    "./src/ocr/merge": "./src/ocr/merge.ts"
   },
   "scripts": {
     "build": "tsc",
@@ -22,6 +24,7 @@
     "@workspace/db": "workspace:*",
     "ai": "^5.0.0",
     "openai": "^4.77.3",
+    "pdf-lib": "^1.17.1",
     "server-only": "^0.0.1",
     "zod": "^3.24.1"
   },

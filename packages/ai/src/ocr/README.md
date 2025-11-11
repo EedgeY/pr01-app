@@ -111,6 +111,87 @@ const pixel = fromNormalized(normalized, canvasWidth, canvasHeight);
 2. **保存**: 正規化座標 + メタデータ（widthPx, heightPx, dpi）
 3. **出力時**: 必要に応じて座標変換
 
+### 4. セグメント分割OCR（高精度検出）
+
+PDFを複数のセグメントに分割し、各セグメントごとにOCRとフィールド検出を実行します。
+重複するフィールドはIoUベースで自動的にマージされます。
+
+```typescript
+// Next.js API Route: /api/ocr/segment-detect
+const formData = new FormData();
+formData.append('file', pdfFile);
+formData.append('segments', JSON.stringify([
+  { pageIndex: 0, x: 0, y: 0.0, w: 1, h: 0.3333 },    // 上部1/3
+  { pageIndex: 0, x: 0, y: 0.3333, w: 1, h: 0.3333 }, // 中部1/3
+  { pageIndex: 0, x: 0, y: 0.6666, w: 1, h: 0.3334 }, // 下部1/3
+]));
+formData.append('twoSource', 'true'); // text-only + layout-only OCR
+
+const response = await fetch('/api/ocr/segment-detect', {
+  method: 'POST',
+  body: formData,
+});
+
+const result = await response.json();
+// result.fields: マージ済みフィールド配列
+// result.pdfmeSchemas: pdfme TextSchema配列
+// result.metadata: { segmentCount, pageCount, processingTimeMs }
+```
+
+#### セグメント検出のメリット
+
+- **高精度**: 各セグメントに対してLLMが集中的に解析
+- **大規模文書対応**: 長大な文書でもセグメント単位で処理
+- **重複排除**: IoUベースで自動的に重複フィールドをマージ
+- **座標系維持**: 元PDFの座標系を完全に保持
+
+#### curl例
+
+```bash
+# 3分割でセグメント検出を実行
+curl -X POST http://localhost:3000/api/ocr/segment-detect \
+  -F file=@/path/to/form.pdf \
+  -F segments='[
+    {"pageIndex":0,"x":0,"y":0.0,"w":1,"h":0.3333},
+    {"pageIndex":0,"x":0,"y":0.3333,"w":1,"h":0.3333},
+    {"pageIndex":0,"x":0,"y":0.6666,"w":1,"h":0.3334}
+  ]' \
+  -F twoSource=true \
+  -F dpi=300 \
+  -F device=cpu
+```
+
+#### レスポンス形式
+
+```json
+{
+  "fields": [
+    {
+      "name": "applicant_name",
+      "label": "氏名",
+      "pageIndex": 0,
+      "bboxNormalized": { "x": 0.1, "y": 0.2, "w": 0.3, "h": 0.05 },
+      "type": "text",
+      "required": true,
+      "confidence": 0.95
+    }
+  ],
+  "pdfmeSchemas": [...],
+  "metadata": {
+    "segmentCount": 3,
+    "pageCount": 1,
+    "processingTimeMs": 12500
+  },
+  "debug": {
+    "perSegment": [
+      { "segmentIndex": 0, "fieldsCount": 5 },
+      { "segmentIndex": 1, "fieldsCount": 8 },
+      { "segmentIndex": 2, "fieldsCount": 4 }
+    ]
+  }
+}
+```
+
 ## テスト
 
 ```bash
