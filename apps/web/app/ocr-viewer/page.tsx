@@ -1,28 +1,21 @@
 'use client';
 
-import { useState } from 'react';
-import type { NormalizedOcr } from '@workspace/ai/src/ocr/types';
+import { useState, useCallback } from 'react';
 import type { DetectedField } from '@workspace/ai';
-import {
-  availableModels,
-  defaultModel,
-} from '@workspace/ai/src/clients/models';
+import { defaultModel } from '@workspace/ai/src/clients/models';
 import { SchemaExportButton } from './_components/SchemaExportButton';
 import { FieldSchemaDetectButton } from './_components/FieldSchemaDetectButton';
-import { FileUploadSection } from './_components/FileUploadSection';
+import { UploadSection } from './_components/UploadSection';
+import { ErrorAlert } from './_components/ErrorAlert';
+import { ModelSelect } from './_components/ModelSelect';
 import { OcrCanvas } from './_components/OcrCanvas';
 import { ContentTabs } from './_components/ContentTabs';
 import { SegmentEditor } from './_components/SegmentEditor';
 import { SegmentRunPanel } from './_components/SegmentRunPanel';
-import { usePdfPreview } from './_hooks/usePdfPreview';
+import { useOcrRequest } from './_hooks/useOcrRequest';
 import { useSegments } from './_hooks/useSegments';
 
 export default function OcrViewerPage() {
-  const [file, setFile] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [ocr, setOcr] = useState<NormalizedOcr | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedPage, setSelectedPage] = useState(0);
   const [mode, setMode] = useState<'ocr' | 'layout' | 'segment'>('ocr');
   const [showBlocks, setShowBlocks] = useState(true);
   const [showTables, setShowTables] = useState(true);
@@ -38,8 +31,27 @@ export default function OcrViewerPage() {
   >('blocks');
   const [selectedModel, setSelectedModel] = useState<string>(defaultModel);
 
-  // PDF preview hook
-  const { imageUrls, generatePreview, clearPreview } = usePdfPreview();
+  // OCR処理とプレビュー生成（外部同期）
+  const {
+    file,
+    setFile,
+    loading,
+    ocr,
+    error,
+    selectedPage,
+    setSelectedPage,
+    imageUrls,
+    runOcrOnly,
+    runLayoutOnly,
+    generatePreview,
+  } = useOcrRequest({
+    mode,
+    onFileChange: (selectedFile) => {
+      if (selectedFile) {
+        setDetectedFields([]);
+      }
+    },
+  });
 
   // Segments hook
   const {
@@ -53,109 +65,41 @@ export default function OcrViewerPage() {
     updateResult,
   } = useSegments();
 
-  const handleFileChange = async (selectedFile: File | null) => {
-    if (selectedFile) {
-      setFile(selectedFile);
-      setOcr(null);
-      setError(null);
-      setDetectedFields([]);
-      clearPreview();
+  const handleModeChange = useCallback(
+    async (newMode: 'ocr' | 'layout' | 'segment') => {
+      setMode(newMode);
 
-      // セグメントモードの場合は即座にプレビューを生成
-      if (mode === 'segment') {
-        await generatePreview(selectedFile);
+      // セグメントモードに切り替えた場合、ファイルがあればプレビューを生成（外部同期）
+      if (newMode === 'segment' && file && imageUrls.length === 0) {
+        await generatePreview(file);
       }
+    },
+    [file, imageUrls.length, generatePreview]
+  );
+
+  const handleUpload = useCallback(async () => {
+    if (mode === 'ocr') {
+      await runOcrOnly();
+    } else {
+      await runLayoutOnly();
     }
-  };
-
-  const handleModeChange = async (newMode: 'ocr' | 'layout' | 'segment') => {
-    setMode(newMode);
-
-    // セグメントモードに切り替えた場合、ファイルがあればプレビューを生成
-    if (newMode === 'segment' && file && imageUrls.length === 0) {
-      await generatePreview(file);
-    }
-  };
-
-  const handleUpload = async () => {
-    if (!file) return;
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('dpi', '300');
-
-      const endpoint =
-        mode === 'ocr' ? '/api/ocr/ocr-only' : '/api/ocr/layout-only';
-
-      const ocrResponse = await fetch(endpoint, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!ocrResponse.ok) {
-        const errorData = await ocrResponse.json();
-        throw new Error(
-          errorData.details || errorData.error || 'OCR処理に失敗しました'
-        );
-      }
-
-      const ocrData: NormalizedOcr = await ocrResponse.json();
-      console.log('[OCR Viewer] Received OCR data:', {
-        pages: ocrData.pages?.length,
-        totalBlocks: ocrData.pages?.reduce(
-          (sum, p) => sum + p.blocks.length,
-          0
-        ),
-      });
-      setOcr(ocrData);
-
-      // 画像URLを生成（プレビュー用）
-      await generatePreview(file);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [mode, runOcrOnly, runLayoutOnly]);
 
   return (
     <div className='min-h-screen bg-background text-foreground'>
       <div className='container mx-auto p-6'>
         {/* Upload Section */}
-        <FileUploadSection
+        <UploadSection
           file={file}
           loading={loading}
           mode={mode}
-          onFileChange={handleFileChange}
+          showModeSelector={true}
+          onFileChange={setFile}
           onModeChange={handleModeChange}
-          onUpload={handleUpload}
+          onExecute={handleUpload}
         />
 
-        {error && (
-          <div className='mb-6 p-4 bg-destructive/10 border-l-4 border-destructive rounded-lg'>
-            <div className='flex items-start'>
-              <svg
-                className='w-5 h-5 text-destructive mt-0.5 mr-3'
-                fill='currentColor'
-                viewBox='0 0 20 20'
-              >
-                <path
-                  fillRule='evenodd'
-                  d='M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z'
-                  clipRule='evenodd'
-                />
-              </svg>
-              <div>
-                <h3 className='text-sm font-medium text-destructive'>Error</h3>
-                <p className='text-sm text-destructive/90 mt-1'>{error}</p>
-              </div>
-            </div>
-          </div>
-        )}
+        <ErrorAlert error={error} />
 
         {/* Segment Mode UI */}
         {mode === 'segment' && file && imageUrls.length > 0 && (
@@ -218,28 +162,7 @@ export default function OcrViewerPage() {
               <div className='flex items-center justify-between flex-wrap gap-3'>
                 <h2 className='text-xl font-bold'>結果を表示</h2>
                 <div className='flex items-center gap-3 flex-wrap'>
-                  {/* Model Selector */}
-                  <div className='flex items-center gap-2'>
-                    <label className='text-sm font-medium text-muted-foreground'>
-                      LLMモデル:
-                    </label>
-                    <select
-                      value={selectedModel}
-                      onChange={(e) => setSelectedModel(e.target.value)}
-                      className='border border-input rounded-md px-3 py-1.5 text-sm bg-background'
-                      title={
-                        availableModels.find((m) => m.id === selectedModel)
-                          ?.description
-                      }
-                    >
-                      {availableModels.map((model) => (
-                        <option key={model.id} value={model.id}>
-                          {model.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
+                  <ModelSelect value={selectedModel} onChange={setSelectedModel} />
                   <SchemaExportButton
                     blocks={ocr.pages[selectedPage]?.blocks || []}
                     disabled={!ocr.pages[selectedPage]?.blocks.length}

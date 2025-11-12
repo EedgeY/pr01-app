@@ -1,51 +1,77 @@
 'use client';
 
-interface FileUploadSectionProps {
+import { Button } from '@workspace/ui/components/button';
+import Link from 'next/link';
+import { ArrowLeftIcon } from 'lucide-react';
+
+type OcrMode = 'ocr' | 'layout' | 'segment';
+
+interface UploadSectionProps {
   file: File | null;
   loading: boolean;
-  mode: 'ocr' | 'layout' | 'segment';
+  mode?: OcrMode;
+  showModeSelector?: boolean;
   onFileChange: (file: File | null) => void;
-  onModeChange: (mode: 'ocr' | 'layout' | 'segment') => void;
-  onUpload: () => void;
+  onModeChange?: (mode: OcrMode) => void;
+  onExecute: () => void;
+  executeLabel?: string;
 }
 
-export function FileUploadSection({
+export function UploadSection({
   file,
   loading,
-  mode,
+  mode = 'ocr',
+  showModeSelector = false,
   onFileChange,
   onModeChange,
-  onUpload,
-}: FileUploadSectionProps) {
+  onExecute,
+  executeLabel,
+}: UploadSectionProps) {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     onFileChange(selectedFile || null);
   };
 
+  const defaultLabel = loading
+    ? '処理中...'
+    : mode === 'layout'
+      ? 'レイアウト解析を実行'
+      : mode === 'segment'
+        ? 'セグメント処理'
+        : 'OCR実行';
+
   return (
-    <div className=' mb-6'>
+    <div className='mb-4'>
       <div className='flex flex-wrap items-center gap-3'>
-        {/* Mode Selection */}
-        <div className='inline-flex items-center rounded-md border'>
-          <button
-            onClick={() => onModeChange('ocr')}
-            className={`px-3 py-2 text-sm ${mode === 'ocr' ? 'bg-primary text-primary-foreground' : ''}`}
-          >
-            文字位置（OCR）
-          </button>
-          <button
-            onClick={() => onModeChange('layout')}
-            className={`px-3 py-2 text-sm border-l ${mode === 'layout' ? 'bg-primary text-primary-foreground' : ''}`}
-          >
-            レイアウト構造
-          </button>
-          <button
-            onClick={() => onModeChange('segment')}
-            className={`px-3 py-2 text-sm border-l ${mode === 'segment' ? 'bg-primary text-primary-foreground' : ''}`}
-          >
-            セグメント
-          </button>
-        </div>
+        <Button variant='ghost' size='sm' asChild>
+          <Link href='/'>
+            <ArrowLeftIcon className='w-4 h-4' />
+          </Link>
+        </Button>
+
+        {/* Mode Selection (optional) */}
+        {showModeSelector && onModeChange && (
+          <div className='inline-flex items-center rounded-md border'>
+            <button
+              onClick={() => onModeChange('ocr')}
+              className={`px-3 py-2 text-sm ${mode === 'ocr' ? 'bg-primary text-primary-foreground' : ''}`}
+            >
+              文字位置（OCR）
+            </button>
+            <button
+              onClick={() => onModeChange('layout')}
+              className={`px-3 py-2 text-sm border-l ${mode === 'layout' ? 'bg-primary text-primary-foreground' : ''}`}
+            >
+              レイアウト構造
+            </button>
+            <button
+              onClick={() => onModeChange('segment')}
+              className={`px-3 py-2 text-sm border-l ${mode === 'segment' ? 'bg-primary text-primary-foreground' : ''}`}
+            >
+              セグメント
+            </button>
+          </div>
+        )}
 
         {/* File Upload */}
         <div className='flex-1 min-w-[200px]'>
@@ -80,11 +106,7 @@ export function FileUploadSection({
         </div>
 
         {/* Execute Button */}
-        <button
-          onClick={onUpload}
-          disabled={!file || loading}
-          className='px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
-        >
+        <Button onClick={onExecute} disabled={!file || loading} size='lg'>
           {loading ? (
             <span className='flex items-center gap-2'>
               <svg
@@ -108,10 +130,11 @@ export function FileUploadSection({
               処理中...
             </span>
           ) : (
-            '🚀 実行'
+            executeLabel || defaultLabel
           )}
-        </button>
+        </Button>
       </div>
     </div>
   );
 }
+
