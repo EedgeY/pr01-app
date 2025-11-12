@@ -29,6 +29,11 @@ export const availableModels = [
     name: 'Qwen3 VL Thinking',
     description: 'Qwen3',
   },
+  {
+    id: 'mistralai/mistral-medium-3',
+    name: 'Mistral Medium 3',
+    description: 'Mistral',
+  },
 ] as const;
 
 export type ModelId = (typeof availableModels)[number]['id'];

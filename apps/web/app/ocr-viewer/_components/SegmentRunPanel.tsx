@@ -645,7 +645,7 @@ export function SegmentRunPanel({
                     }}
                     className='text-xs px-3 py-1 bg-purple-600 text-white hover:bg-purple-700 rounded transition-colors'
                   >
-                    LLM再実行
+                    LLM個別実行
                   </button>
                   <button
                     onClick={(e) => {

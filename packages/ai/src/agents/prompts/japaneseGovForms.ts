@@ -158,7 +158,7 @@ ${layoutInfo}
 
 /**
  * 2ソース（text-only + layout-only）前提のユーザープロンプトテンプレート
- * 
+ *
  * @param textOcrText - text-only OCRから抽出したテキスト
  * @param layoutInfo - layout-only OCRから抽出したレイアウト構造情報
  */
@@ -212,26 +212,22 @@ export const commonJapaneseFormFields = [
   { pattern: /生年月日|生\s*年\s*月\s*日/, name: 'birth_date', type: 'date' },
   { pattern: /年\s*齢/, name: 'age', type: 'number' },
   { pattern: /性\s*別/, name: 'gender', type: 'radio' },
-  
+
   // 連絡先
   { pattern: /住\s*所|現住所/, name: 'address', type: 'address' },
   { pattern: /電話番号|電\s*話/, name: 'phone', type: 'number' },
   { pattern: /携帯電話/, name: 'mobile', type: 'number' },
   { pattern: /メールアドレス|E-?mail/, name: 'email', type: 'text' },
-  
+
   // 申請情報
   { pattern: /申請日|提出日/, name: 'application_date', type: 'date' },
   { pattern: /申請者|届出人/, name: 'applicant', type: 'text' },
   { pattern: /代理人/, name: 'agent', type: 'text' },
-  
+
   // 押印
   { pattern: /印|押印/, name: 'seal', type: 'seal' },
-  
+
   // その他
   { pattern: /備\s*考|特記事項/, name: 'remarks', type: 'text' },
   { pattern: /チェック|確認/, name: 'checkbox', type: 'checkbox' },
 ];
-
-
-
-

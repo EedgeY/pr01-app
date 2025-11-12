@@ -481,7 +481,7 @@ export function fieldsToTextSchemas(
           `${field.name}_${seg.name}`,
           page
         );
-        schema.required = field.required;
+        schema.required = false; // Always set to false for pdfme schemas
         // 下線入力の見栄えを多少良くするためのヒント（下線は PDF 側にある前提）
         schema.underline = false;
         results.push(schema);
@@ -495,7 +495,7 @@ export function fieldsToTextSchemas(
       field.name || field.label,
       page
     );
-    schema.required = field.required;
+    schema.required = false; // Always set to false for pdfme schemas
     results.push(schema);
   }
 

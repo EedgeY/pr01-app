@@ -14,22 +14,19 @@
     "./src/ocr/types": "./src/ocr/types.ts"
   },
   "scripts": {
-    "build": "tsc",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "build": "tsc"
   },
   "dependencies": {
     "@mastra/core": "^0.24.0",
     "@openrouter/ai-sdk-provider": "^1.2.1",
     "ai": "^5.0.0",
-    "openai": "^4.77.3",
+    "openai": "^6.8.1",
     "server-only": "^0.0.1",
-    "zod": "^3.24.1"
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/node": "^20.19.9",
     "@workspace/typescript-config": "workspace:*",
-    "typescript": "5.7.3",
-    "vitest": "^2.1.8"
+    "typescript": "5.9.3"
   }
 }

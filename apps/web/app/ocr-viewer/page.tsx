@@ -104,8 +104,8 @@ export default function OcrViewerPage() {
         {/* Segment Mode UI */}
         {mode === 'segment' && file && imageUrls.length > 0 && (
           <>
-            {/* Page Selector for Segment Mode */}
-            <div className=' mb-4'>
+            {/* Page Selector & Model Select for Segment Mode */}
+            <div className='mb-4 flex items-center gap-4 flex-wrap'>
               <div className='flex items-center gap-3'>
                 <label className='text-sm font-medium'>ページ選択:</label>
                 <select
@@ -120,6 +120,7 @@ export default function OcrViewerPage() {
                   ))}
                 </select>
               </div>
+              <ModelSelect value={selectedModel} onChange={setSelectedModel} />
             </div>
 
             <div className='grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6'>
@@ -162,7 +163,10 @@ export default function OcrViewerPage() {
               <div className='flex items-center justify-between flex-wrap gap-3'>
                 <h2 className='text-xl font-bold'>結果を表示</h2>
                 <div className='flex items-center gap-3 flex-wrap'>
-                  <ModelSelect value={selectedModel} onChange={setSelectedModel} />
+                  <ModelSelect
+                    value={selectedModel}
+                    onChange={setSelectedModel}
+                  />
                   <SchemaExportButton
                     blocks={ocr.pages[selectedPage]?.blocks || []}
                     disabled={!ocr.pages[selectedPage]?.blocks.length}
