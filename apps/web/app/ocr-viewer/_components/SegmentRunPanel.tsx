@@ -9,6 +9,31 @@ import {
 } from '../_utils/generateSegmentPdf';
 import { Button } from '@workspace/ui/components/button';
 
+// PDF Blob を PNG の dataURL に変換するユーティリティ
+async function pdfBlobToImageDataUrl(
+  pdfBlob: Blob,
+  scale = 2
+): Promise<string | undefined> {
+  try {
+    const arrayBuffer = await pdfBlob.arrayBuffer();
+    const pdfjsLib = await import('pdfjs-dist');
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const pdfDoc = await loadingTask.promise;
+    const page = await pdfDoc.getPage(1);
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Canvas context not available');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: context, viewport } as any).promise;
+    return canvas.toDataURL('image/png');
+  } catch (e) {
+    console.warn('pdfBlobToImageDataUrl failed:', e);
+    return undefined;
+  }
+}
+
 interface SegmentRunPanelProps {
   file: File | null;
   segments: Segment[];
@@ -43,6 +68,26 @@ export function SegmentRunPanel({
   >(null);
   const [showSchemaModal, setShowSchemaModal] = useState(false);
   const [schemaCopied, setSchemaCopied] = useState(false);
+
+  const mergeSchemasFromResults = useCallback(
+    (r: Map<string, SegmentResult>) => {
+      const merged: PdfmeTextSchema[] = [];
+      r.forEach((item) => {
+        if (item?.llmSchemas && Array.isArray(item.llmSchemas)) {
+          merged.push(...item.llmSchemas);
+        }
+      });
+      return merged;
+    },
+    []
+  );
+
+  // LLMローカル集約（各セグメントのllmSchemasを統合）
+  const recomputeCombinedSchemas = useCallback(() => {
+    const merged = mergeSchemasFromResults(results);
+    setDetectedSchemas(merged);
+    setShowSchemaModal(true);
+  }, [results, mergeSchemasFromResults]);
 
   // 直列でOCR実行
   const handleRunOcr = useCallback(async () => {
@@ -122,6 +167,83 @@ export function SegmentRunPanel({
     }
   }, [file, segments, onResultUpdate]);
 
+  // 単一セグメントのLLM推論（再実行）
+  const runLlmForSegment = useCallback(
+    async (segmentId: string) => {
+      const seg = segments.find((s) => s.id === segmentId);
+      if (!seg) return;
+      const res = results.get(segmentId);
+      if (!res?.ocrResult) {
+        setDetectError('先にOCRを実行してください。');
+        return;
+      }
+
+      // 画像生成（可能ならPDFからPNG）
+      let imageBase64: string | undefined = undefined;
+      if (res.pdfBlob) {
+        imageBase64 = await pdfBlobToImageDataUrl(res.pdfBlob, 2.0);
+      }
+
+      setIsDetecting(true);
+      setDetectError(null);
+      try {
+        const payload = {
+          segmentOcrResults: [
+            {
+              segmentIndex: 0,
+              ocr: res.ocrResult,
+              image: imageBase64,
+              pageIndex: seg.page,
+              bboxNormalized: {
+                x: seg.nx,
+                y: seg.ny,
+                w: seg.nw,
+                h: seg.nh,
+              },
+            },
+          ],
+        };
+        const response = await fetch('/api/ocr/segment-detect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(
+            errorData.details ||
+              errorData.error ||
+              'セグメント検出に失敗しました'
+          );
+        }
+        const data = await response.json();
+        onResultUpdate(segmentId, {
+          llmSchemas: data.pdfmeSchemas || [],
+          llmError: undefined,
+        });
+        // 単体更新後、最新の反映がsetStateに入る前に手元で統合して即時表示
+        const current = results.get(segmentId);
+        const updated = new Map(results);
+        updated.set(segmentId, {
+          ...(current || { status: 'success' }),
+          ...(current ?? {}),
+          llmSchemas: data.pdfmeSchemas || [],
+          llmError: undefined,
+        });
+        const merged = mergeSchemasFromResults(updated);
+        setDetectedSchemas(merged);
+        setShowSchemaModal(true);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Unknown error';
+        onResultUpdate(segmentId, { llmError: msg });
+        setDetectError(msg);
+      } finally {
+        setIsDetecting(false);
+      }
+    },
+    [segments, results, onResultUpdate, mergeSchemasFromResults]
+  );
+
   // 個別のセグメントPDFをダウンロード
   const handleDownloadPdf = useCallback(
     (segmentId: string) => {
@@ -151,6 +273,17 @@ export function SegmentRunPanel({
       }
     },
     [results]
+  );
+
+  // セグメントLLM結果クリア
+  const handleClearLlm = useCallback(
+    (segmentId: string) => {
+      onResultUpdate(segmentId, {
+        llmSchemas: undefined,
+        llmError: undefined,
+      });
+    },
+    [onResultUpdate]
   );
 
   // OCR結果からテキストを抽出
@@ -195,41 +328,7 @@ export function SegmentRunPanel({
           // セグメントPDFから画像を生成
           let imageBase64: string | undefined = undefined;
           if (result?.pdfBlob) {
-            try {
-              const pdfBlob = result.pdfBlob;
-              const arrayBuffer = await pdfBlob.arrayBuffer();
-
-              // PDFをCanvasに描画して画像化
-              const pdfjsLib = await import('pdfjs-dist');
-              const loadingTask = pdfjsLib.getDocument({
-                data: arrayBuffer,
-              });
-              const pdfDoc = await loadingTask.promise;
-              const page = await pdfDoc.getPage(1);
-
-              const viewport = page.getViewport({ scale: 2.0 });
-              const canvas = document.createElement('canvas');
-              const context = canvas.getContext('2d');
-              if (!context) throw new Error('Canvas context not available');
-
-              canvas.width = viewport.width;
-              canvas.height = viewport.height;
-
-              await page.render({
-                canvasContext: context,
-                viewport,
-              } as any).promise;
-
-              imageBase64 = canvas.toDataURL('image/png');
-              console.log(
-                `[SegmentRunPanel] Generated image for segment ${idx}`
-              );
-            } catch (imgErr) {
-              console.warn(
-                `[SegmentRunPanel] Failed to generate image for segment ${idx}:`,
-                imgErr
-              );
-            }
+            imageBase64 = await pdfBlobToImageDataUrl(result.pdfBlob, 2.0);
           }
 
           return {
@@ -279,6 +378,30 @@ export function SegmentRunPanel({
         result.pdfmeSchemas?.length
       );
       console.log('[SegmentRunPanel] Metadata:', result.metadata);
+
+      // サーバー集約結果を各セグメントにも反映（以降のローカル再集約で消えないように保持）
+      try {
+        const bySegment: Array<{
+          segmentIndex: number;
+          pdfmeSchemas: PdfmeTextSchema[];
+          error?: string;
+        }> = result.bySegment || [];
+        // segmentsWithOcr の並びと segmentIndex を対応させて id を引く
+        const indexToId = segmentsWithOcr.map((s) => s.id);
+        bySegment.forEach((item) => {
+          const segId = indexToId[item.segmentIndex];
+          if (!segId) return;
+          onResultUpdate(segId, {
+            llmSchemas: item.pdfmeSchemas || [],
+            llmError: item.error,
+          });
+        });
+      } catch (e) {
+        console.warn(
+          '[SegmentRunPanel] Failed to persist bySegment results:',
+          e
+        );
+      }
 
       setDetectedSchemas(result.pdfmeSchemas || []);
       setShowSchemaModal(true);
@@ -397,6 +520,13 @@ export function SegmentRunPanel({
               'スキーマ生成'
             )}
           </Button>
+          <Button
+            onClick={recomputeCombinedSchemas}
+            disabled={segments.length === 0}
+            variant='outline'
+          >
+            再集約（ローカル）
+          </Button>
         </div>
       </div>
 
@@ -500,6 +630,34 @@ export function SegmentRunPanel({
                       {extractTextFromOcr(result.ocrResult).length > 200 &&
                         '...'}
                     </div>
+                  </div>
+                )}
+
+                {/* LLMアクション */}
+                <div className='flex flex-wrap gap-2 mt-2'>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      runLlmForSegment(segment.id);
+                    }}
+                    className='text-xs px-3 py-1 bg-purple-600 text-white hover:bg-purple-700 rounded transition-colors'
+                  >
+                    LLM再実行
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleClearLlm(segment.id);
+                    }}
+                    className='text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded border border-gray-300 transition-colors'
+                  >
+                    LLMクリア
+                  </button>
+                </div>
+
+                {result?.llmError && (
+                  <div className='text-xs text-red-600 mt-2'>
+                    {result.llmError}
                   </div>
                 )}
               </div>

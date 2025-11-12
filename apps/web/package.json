@@ -16,9 +16,6 @@
     "@aws-sdk/s3-request-presigner": "^3.922.0",
     "@libsql/client": "^0.10.0",
     "@workspace/ai": "workspace:*",
-    "@workspace/auth": "workspace:*",
-    "@workspace/db": "workspace:*",
-    "@workspace/stripe": "workspace:*",
     "@workspace/ui": "workspace:*",
     "lucide-react": "^0.475.0",
     "nanoid": "^5.1.6",
@@ -27,7 +24,7 @@
     "pdfjs-dist": "^5.4.394",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "tldraw": "^4.1.2"
+    "pdf-lib": "^1.17.1"
   },
   "devDependencies": {
     "@types/node": "^20.19.9",

@@ -16,6 +16,13 @@ export const openai = new OpenAI({
 
 export const defaultModel = 'google/gemini-2.5-pro';
 
+// 選べるようにしたい
+// export const defaultModel = [
+//   'google/gemini-2.5-pro',
+//   'google/gemini-2.5-flash',
+//   'x-ai/grok-4-fast',
+// ];
+
 // レート制限対応のリトライヘルパー
 export async function withRetry<T>(
   fn: () => Promise<T>,

@@ -19,7 +19,6 @@
   "dependencies": {
     "@mastra/core": "^0.24.0",
     "@openrouter/ai-sdk-provider": "^1.2.1",
-    "@workspace/db": "workspace:*",
     "ai": "^5.0.0",
     "openai": "^4.77.3",
     "server-only": "^0.0.1",

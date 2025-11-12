@@ -4,6 +4,7 @@
 
 import { useState, useCallback } from 'react';
 import type { NormalizedOcr } from '@workspace/ai/src/ocr/types';
+import type { PdfmeTextSchema } from '@workspace/ai/src/ocr';
 
 export interface Segment {
   id: string;
@@ -19,6 +20,9 @@ export interface SegmentResult {
   pdfBlob?: Blob;
   ocrResult?: NormalizedOcr;
   error?: string;
+  // セグメント単位のLLM出力（スキーマ）
+  llmSchemas?: PdfmeTextSchema[];
+  llmError?: string;
 }
 
 export function useSegments() {
