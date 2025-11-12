@@ -61,13 +61,13 @@ export function SchemaExportButton({
 
   return (
     <>
-      <Button
+      {/* <Button
         onClick={handleGenerate}
         disabled={disabled || blocks.length === 0}
         variant='outline'
       >
         📄 pdfme TextSchema生成
-      </Button>
+      </Button> */}
 
       {showModal && (
         <div

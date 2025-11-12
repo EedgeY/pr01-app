@@ -65,15 +65,20 @@ export function FieldSchemaDetectButton({
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.details || errorData.error || 'Field detection failed');
+        throw new Error(
+          errorData.details || errorData.error || 'Field detection failed'
+        );
       }
 
       const result = await response.json();
-      console.log('[FieldSchemaDetectButton] Detected fields:', result.fields?.length);
-      
+      console.log(
+        '[FieldSchemaDetectButton] Detected fields:',
+        result.fields?.length
+      );
+
       setSchemas(result.pdfmeSchemas || []);
       setShowModal(true);
-      
+
       // 親コンポーネントに検出結果を通知
       if (onFieldsDetected && result.fields) {
         onFieldsDetected(result.fields);
@@ -140,7 +145,7 @@ export function FieldSchemaDetectButton({
             検出中...
           </span>
         ) : (
-          '🤖 入力欄TextSchema生成'
+          'LLM 生成'
         )}
       </button>
 
@@ -190,7 +195,7 @@ export function FieldSchemaDetectButton({
             {/* Header */}
             <div className='flex items-center justify-between p-4 border-b'>
               <h3 className='text-lg font-semibold'>
-                🤖 入力欄TextSchema ({schemas.length}件)
+                LLM 生成 ({schemas.length}件)
               </h3>
               <button
                 onClick={() => setShowModal(false)}
@@ -293,4 +298,3 @@ export function FieldSchemaDetectButton({
     </>
   );
 }
-

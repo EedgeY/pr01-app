@@ -12,10 +12,12 @@ interface ContentTabsProps {
     index: number;
   } | null;
   onTabChange: (tab: 'blocks' | 'tables' | 'figures' | 'fields') => void;
-  onBlockSelect: (selection: {
-    type: 'block' | 'table' | 'figure' | 'field';
-    index: number;
-  } | null) => void;
+  onBlockSelect: (
+    selection: {
+      type: 'block' | 'table' | 'figure' | 'field';
+      index: number;
+    } | null
+  ) => void;
 }
 
 export function ContentTabs({
@@ -26,12 +28,14 @@ export function ContentTabs({
   onTabChange,
   onBlockSelect,
 }: ContentTabsProps) {
-  const pageFields = detectedFields.filter((f) => f.pageIndex === page.pageIndex);
+  const pageFields = detectedFields.filter(
+    (f) => f.pageIndex === page.pageIndex
+  );
 
   return (
-    <div className="bg-muted/30 rounded-lg border flex flex-col h-[600px]">
+    <div className='bg-muted/30 rounded-lg border flex flex-col h-[600px]'>
       {/* Tab Header */}
-      <div className="flex border-b bg-background">
+      <div className='flex border-b bg-background'>
         <button
           onClick={() => onTabChange('blocks')}
           className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
@@ -40,9 +44,9 @@ export function ContentTabs({
               : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
           }`}
         >
-          <div className="flex items-center justify-center gap-2">
+          <div className='flex items-center justify-center gap-2'>
             📄 Blocks
-            <span className="text-xs bg-muted px-2 py-0.5 rounded-full">
+            <span className='text-xs bg-muted px-2 py-0.5 rounded-full'>
               {page.blocks.length}
             </span>
           </div>
@@ -55,9 +59,9 @@ export function ContentTabs({
               : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
           }`}
         >
-          <div className="flex items-center justify-center gap-2">
+          <div className='flex items-center justify-center gap-2'>
             📊 Tables
-            <span className="text-xs bg-muted px-2 py-0.5 rounded-full">
+            <span className='text-xs bg-muted px-2 py-0.5 rounded-full'>
               {page.tables?.length || 0}
             </span>
           </div>
@@ -70,9 +74,9 @@ export function ContentTabs({
               : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
           }`}
         >
-          <div className="flex items-center justify-center gap-2">
+          <div className='flex items-center justify-center gap-2'>
             🖼️ Figures
-            <span className="text-xs bg-muted px-2 py-0.5 rounded-full">
+            <span className='text-xs bg-muted px-2 py-0.5 rounded-full'>
               {page.figures?.length || 0}
             </span>
           </div>
@@ -85,9 +89,9 @@ export function ContentTabs({
               : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
           }`}
         >
-          <div className="flex items-center justify-center gap-2">
-            🤖 AI Fields
-            <span className="text-xs bg-purple-500 text-white px-2 py-0.5 rounded-full">
+          <div className='flex items-center justify-center gap-2'>
+            AI Fields
+            <span className='text-xs bg-purple-500 text-white px-2 py-0.5 rounded-full'>
               {pageFields.length}
             </span>
           </div>
@@ -95,10 +99,10 @@ export function ContentTabs({
       </div>
 
       {/* Tab Content */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className='flex-1 overflow-y-auto p-4'>
         {/* Blocks Tab */}
         {activeTab === 'blocks' && (
-          <div className="space-y-2">
+          <div className='space-y-2'>
             {page.blocks.map((block, idx) => {
               const isSelected =
                 selectedBlock?.type === 'block' && selectedBlock.index === idx;
@@ -117,15 +121,17 @@ export function ContentTabs({
                       : 'bg-background hover:bg-muted/50'
                   }`}
                 >
-                  <div className="flex items-start gap-2">
-                    <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">
+                  <div className='flex items-start gap-2'>
+                    <span className='text-xs font-mono bg-muted px-1.5 py-0.5 rounded'>
                       {idx}
                     </span>
-                    <div className="flex-1">
-                      <div className="text-xs text-muted-foreground font-medium mb-1">
+                    <div className='flex-1'>
+                      <div className='text-xs text-muted-foreground font-medium mb-1'>
                         {block.blockType}
                       </div>
-                      <div className="line-clamp-2">{block.text || '(empty)'}</div>
+                      <div className='line-clamp-2'>
+                        {block.text || '(empty)'}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -136,11 +142,12 @@ export function ContentTabs({
 
         {/* Tables Tab */}
         {activeTab === 'tables' && (
-          <div className="space-y-2">
+          <div className='space-y-2'>
             {page.tables && page.tables.length > 0 ? (
               page.tables.map((table, idx) => {
                 const isSelected =
-                  selectedBlock?.type === 'table' && selectedBlock.index === idx;
+                  selectedBlock?.type === 'table' &&
+                  selectedBlock.index === idx;
                 return (
                   <div
                     key={idx}
@@ -156,14 +163,14 @@ export function ContentTabs({
                         : 'bg-background hover:bg-muted/50'
                     }`}
                   >
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">
+                    <div className='flex items-center gap-2 text-sm'>
+                      <span className='text-xs font-mono bg-muted px-1.5 py-0.5 rounded'>
                         {idx}
                       </span>
-                      <span className="font-medium">
+                      <span className='font-medium'>
                         {table.rows} rows × {table.cols} cols
                       </span>
-                      <span className="text-xs text-muted-foreground">
+                      <span className='text-xs text-muted-foreground'>
                         ({table.cells.length} cells)
                       </span>
                     </div>
@@ -171,7 +178,7 @@ export function ContentTabs({
                 );
               })
             ) : (
-              <div className="text-center text-muted-foreground py-8">
+              <div className='text-center text-muted-foreground py-8'>
                 テーブルが検出されませんでした
               </div>
             )}
@@ -180,11 +187,12 @@ export function ContentTabs({
 
         {/* Figures Tab */}
         {activeTab === 'figures' && (
-          <div className="space-y-2">
+          <div className='space-y-2'>
             {page.figures && page.figures.length > 0 ? (
               page.figures.map((figure, idx) => {
                 const isSelected =
-                  selectedBlock?.type === 'figure' && selectedBlock.index === idx;
+                  selectedBlock?.type === 'figure' &&
+                  selectedBlock.index === idx;
                 return (
                   <div
                     key={idx}
@@ -200,8 +208,8 @@ export function ContentTabs({
                         : 'bg-background hover:bg-muted/50'
                     }`}
                   >
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">
+                    <div className='flex items-center gap-2 text-sm'>
+                      <span className='text-xs font-mono bg-muted px-1.5 py-0.5 rounded'>
                         {idx}
                       </span>
                       <span>{figure.figureType}</span>
@@ -210,7 +218,7 @@ export function ContentTabs({
                 );
               })
             ) : (
-              <div className="text-center text-muted-foreground py-8">
+              <div className='text-center text-muted-foreground py-8'>
                 図表が検出されませんでした
               </div>
             )}
@@ -219,11 +227,12 @@ export function ContentTabs({
 
         {/* Fields Tab */}
         {activeTab === 'fields' && (
-          <div className="space-y-2">
+          <div className='space-y-2'>
             {pageFields.length > 0 ? (
               pageFields.map((field, idx) => {
                 const isSelected =
-                  selectedBlock?.type === 'field' && selectedBlock.index === idx;
+                  selectedBlock?.type === 'field' &&
+                  selectedBlock.index === idx;
                 return (
                   <div
                     key={idx}
@@ -239,31 +248,35 @@ export function ContentTabs({
                         : 'bg-background hover:bg-muted/50'
                     }`}
                   >
-                    <div className="flex items-start gap-2">
-                      <span className="text-xs font-mono bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">
+                    <div className='flex items-start gap-2'>
+                      <span className='text-xs font-mono bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded'>
                         {idx}
                       </span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium text-sm">{field.label}</span>
-                          <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+                      <div className='flex-1 min-w-0'>
+                        <div className='flex items-center gap-2 mb-1'>
+                          <span className='font-medium text-sm'>
+                            {field.label}
+                          </span>
+                          <span className='text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full'>
                             {field.type}
                           </span>
                           {field.required && (
-                            <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
+                            <span className='text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full'>
                               必須
                             </span>
                           )}
                         </div>
-                        <div className="text-xs text-muted-foreground space-y-1">
+                        <div className='text-xs text-muted-foreground space-y-1'>
                           <div>
                             キー:{' '}
-                            <code className="bg-muted px-1 py-0.5 rounded">
+                            <code className='bg-muted px-1 py-0.5 rounded'>
                               {field.name}
                             </code>
                           </div>
-                          <div>信頼度: {(field.confidence * 100).toFixed(0)}%</div>
-                          <div className="font-mono text-[10px]">
+                          <div>
+                            信頼度: {(field.confidence * 100).toFixed(0)}%
+                          </div>
+                          <div className='font-mono text-[10px]'>
                             bbox: [{field.bboxNormalized.x.toFixed(3)},{' '}
                             {field.bboxNormalized.y.toFixed(3)},{' '}
                             {field.bboxNormalized.w.toFixed(3)},{' '}
@@ -276,10 +289,10 @@ export function ContentTabs({
                 );
               })
             ) : (
-              <div className="text-center text-muted-foreground py-8">
-                <div className="mb-2">🤖</div>
+              <div className='text-center text-muted-foreground py-8'>
+                <div className='mb-2'>🤖</div>
                 <div>AIフィールドがまだ検出されていません</div>
-                <div className="text-xs mt-2">
+                <div className='text-xs mt-2'>
                   「入力欄TextSchema生成」ボタンをクリックして検出してください
                 </div>
               </div>
@@ -290,4 +303,3 @@ export function ContentTabs({
     </div>
   );
 }
-
