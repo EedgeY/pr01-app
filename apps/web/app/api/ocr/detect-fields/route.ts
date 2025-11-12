@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { detectFormFields } from '@workspace/ai';
 import { fieldsToTextSchemas } from '@workspace/ai/src/ocr';
 import type { NormalizedOcr } from '@workspace/ai/src/ocr/types';
+import type { ModelId } from '@workspace/ai/src/clients/openrouter';
 import path from 'path';
 import { mkdir, writeFile } from 'fs/promises';
 
@@ -16,7 +17,7 @@ export const runtime = 'nodejs';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { ocr, textOcr, layoutOcr, image, page, segmentIndex, segmentConstraint } = body as {
+    const { ocr, textOcr, layoutOcr, image, page, segmentIndex, segmentConstraint, model } = body as {
       ocr?: NormalizedOcr;
       textOcr?: NormalizedOcr;
       layoutOcr?: NormalizedOcr;
@@ -27,6 +28,7 @@ export async function POST(request: NextRequest) {
         pageIndex: number;
         bboxNormalized: { x: number; y: number; w: number; h: number };
       };
+      model?: ModelId;
     };
 
     // 2ソースモード（textOcr + layoutOcr）または単一ソースモード（ocr）のいずれかが必要
@@ -78,6 +80,7 @@ export async function POST(request: NextRequest) {
         : { pageHint }),
       ...(useTwoSourceMode ? { textOcr, layoutOcr } : {}),
       ...(segmentConstraint ? { segmentConstraint } : {}),
+      ...(model ? { model } : {}),
     };
 
     // Call LLM to detect fields

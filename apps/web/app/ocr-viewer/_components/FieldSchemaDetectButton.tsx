@@ -11,6 +11,7 @@ interface FieldSchemaDetectButtonProps {
   selectedPage: number;
   disabled?: boolean;
   onFieldsDetected?: (fields: DetectedField[]) => void;
+  model?: string;
 }
 
 export function FieldSchemaDetectButton({
@@ -19,6 +20,7 @@ export function FieldSchemaDetectButton({
   selectedPage,
   disabled,
   onFieldsDetected,
+  model,
 }: FieldSchemaDetectButtonProps) {
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -57,6 +59,7 @@ export function FieldSchemaDetectButton({
           ocr,
           image: imageDataUrl,
           page: selectedPage,
+          model,
         }),
       });
 

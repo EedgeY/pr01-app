@@ -1,6 +1,6 @@
 import 'server-only';
 
-export { openai, defaultModel, withRetry } from './clients/openrouter';
+export { openai, withRetry } from './clients/openrouter';
 export {
   detectFormFields,
   validateFields,
@@ -15,3 +15,7 @@ export type {
 
 // OCR exports
 export * from './ocr';
+
+// Note: クライアントコンポーネントでは '@workspace/ai/src/clients/models' から直接インポートしてください
+// export { availableModels, defaultModel } from './clients/models';
+export type { ModelId } from './clients/models';

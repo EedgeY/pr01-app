@@ -1,5 +1,9 @@
 import 'server-only';
 import OpenAI from 'openai';
+import { defaultModel, type ModelId } from './models';
+
+// Re-export for server-side usage
+export { availableModels, defaultModel, type ModelId } from './models';
 
 if (!process.env.OPENROUTER_API_KEY) {
   throw new Error('OPENROUTER_API_KEY is not set');
@@ -13,15 +17,6 @@ export const openai = new OpenAI({
     'X-Title': 'Writing Workflow',
   },
 });
-
-export const defaultModel = 'google/gemini-2.5-pro';
-
-// 選べるようにしたい
-// export const defaultModel = [
-//   'google/gemini-2.5-pro',
-//   'google/gemini-2.5-flash',
-//   'x-ai/grok-4-fast',
-// ];
 
 // レート制限対応のリトライヘルパー
 export async function withRetry<T>(

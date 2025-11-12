@@ -12,6 +12,9 @@ export default function Page() {
             <Link href='/ocr-viewer'>
               <Button size='lg'>OCR Viewer</Button>
             </Link>
+            <Link href='/ocr-viewer/compose'>
+              <Button size='lg'>Compose OCR</Button>
+            </Link>
           </div>
         </section>
       </main>

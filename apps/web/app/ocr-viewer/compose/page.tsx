@@ -2,8 +2,12 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import type { NormalizedOcr } from '@workspace/ai/src/ocr/types';
+import {
+  availableModels,
+  defaultModel,
+} from '@workspace/ai/src/clients/models';
 import { usePdfPreview } from '../_hooks/usePdfPreview';
-import { useSegments } from '../_hooks/useSegments';
+import { useSegments, type Segment } from '../_hooks/useSegments';
 import { SegmentRunPanel } from '../_components/SegmentRunPanel';
 import { UploadSection } from './_components/UploadSection';
 import { PageSelector } from './_components/PageSelector';
@@ -35,6 +39,7 @@ export default function ComposeOcrPage() {
   const [layoutOcr, setLayoutOcr] = useState<NormalizedOcr | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedPage, setSelectedPage] = useState(0);
+  const [selectedModel, setSelectedModel] = useState<string>(defaultModel);
 
   // オーバーレイ表示トグル
   const [showBlocks, setShowBlocks] = useState(true);
@@ -104,6 +109,38 @@ export default function ComposeOcrPage() {
   // PDF preview hook
   const { imageUrls, generatePreview, clearPreview } = usePdfPreview();
 
+  // セグメント削除時にレイアウト要素のセグメント化状態を解除する処理
+  const handleSegmentDelete = useCallback((segment: Segment) => {
+    if (segment.relatedElements) {
+      // 関連するブロックのセグメント化状態を解除
+      setSegmentedBlocks((prev) => {
+        const newSet = new Set(prev);
+        segment.relatedElements!.blocks.forEach((idx: number) => {
+          newSet.delete(idx);
+        });
+        return newSet;
+      });
+
+      // 関連するテーブルのセグメント化状態を解除
+      setSegmentedTables((prev) => {
+        const newSet = new Set(prev);
+        segment.relatedElements!.tables.forEach((idx: number) => {
+          newSet.delete(idx);
+        });
+        return newSet;
+      });
+
+      // 関連するフィギュアのセグメント化状態を解除
+      setSegmentedFigures((prev) => {
+        const newSet = new Set(prev);
+        segment.relatedElements!.figures.forEach((idx: number) => {
+          newSet.delete(idx);
+        });
+        return newSet;
+      });
+    }
+  }, []);
+
   // Segments hook
   const {
     segments,
@@ -114,7 +151,7 @@ export default function ComposeOcrPage() {
     deleteSegment,
     selectSegment,
     updateResult,
-  } = useSegments();
+  } = useSegments(handleSegmentDelete);
 
   // ファイル選択
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -258,7 +295,7 @@ export default function ComposeOcrPage() {
     const unionBbox = unionBboxes(bboxes);
     if (!unionBbox) return;
 
-    // セグメントを生成
+    // セグメントを生成（含まれる要素情報を記録）
     const newSegment = {
       id: `seg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
       page: selectedPage,
@@ -266,6 +303,11 @@ export default function ComposeOcrPage() {
       ny: unionBbox.y,
       nw: unionBbox.w,
       nh: unionBbox.h,
+      relatedElements: {
+        blocks: [...selectedBlocks],
+        tables: [...selectedTables],
+        figures: [...selectedFigures],
+      },
     };
 
     addSegment(newSegment);
@@ -307,6 +349,11 @@ export default function ComposeOcrPage() {
           ny: block.bbox.y,
           nw: block.bbox.w,
           nh: block.bbox.h,
+          relatedElements: {
+            blocks: [idx],
+            tables: [],
+            figures: [],
+          },
         };
         addSegment(newSegment);
         setSegmentedBlocks((prev) => new Set(prev).add(idx));
@@ -324,6 +371,11 @@ export default function ComposeOcrPage() {
           ny: table.bbox.y,
           nw: table.bbox.w,
           nh: table.bbox.h,
+          relatedElements: {
+            blocks: [],
+            tables: [idx],
+            figures: [],
+          },
         };
         addSegment(newSegment);
         setSegmentedTables((prev) => new Set(prev).add(idx));
@@ -341,6 +393,11 @@ export default function ComposeOcrPage() {
           ny: figure.bbox.y,
           nw: figure.bbox.w,
           nh: figure.bbox.h,
+          relatedElements: {
+            blocks: [],
+            tables: [],
+            figures: [idx],
+          },
         };
         addSegment(newSegment);
         setSegmentedFigures((prev) => new Set(prev).add(idx));
@@ -422,11 +479,19 @@ export default function ComposeOcrPage() {
     [removeFromSelectionOrder]
   );
 
-  // 削除ハンドラー
+  // 削除/復元ハンドラー（トグル動作）
   const handleDeleteBlock = useCallback(
     (idx: number) => {
       removeFromSelectionOrder(createElementId('block', idx));
-      setDeletedBlocks((prev) => new Set(prev).add(idx));
+      setDeletedBlocks((prev) => {
+        const newSet = new Set(prev);
+        if (newSet.has(idx)) {
+          newSet.delete(idx); // 復元
+        } else {
+          newSet.add(idx); // 削除
+        }
+        return newSet;
+      });
       setSelectedBlocks((prev) => {
         const newSet = new Set(prev);
         newSet.delete(idx);
@@ -444,7 +509,15 @@ export default function ComposeOcrPage() {
   const handleDeleteTable = useCallback(
     (idx: number) => {
       removeFromSelectionOrder(createElementId('table', idx));
-      setDeletedTables((prev) => new Set(prev).add(idx));
+      setDeletedTables((prev) => {
+        const newSet = new Set(prev);
+        if (newSet.has(idx)) {
+          newSet.delete(idx); // 復元
+        } else {
+          newSet.add(idx); // 削除
+        }
+        return newSet;
+      });
       setSelectedTables((prev) => {
         const newSet = new Set(prev);
         newSet.delete(idx);
@@ -462,7 +535,15 @@ export default function ComposeOcrPage() {
   const handleDeleteFigure = useCallback(
     (idx: number) => {
       removeFromSelectionOrder(createElementId('figure', idx));
-      setDeletedFigures((prev) => new Set(prev).add(idx));
+      setDeletedFigures((prev) => {
+        const newSet = new Set(prev);
+        if (newSet.has(idx)) {
+          newSet.delete(idx); // 復元
+        } else {
+          newSet.add(idx); // 削除
+        }
+        return newSet;
+      });
       setSelectedFigures((prev) => {
         const newSet = new Set(prev);
         newSet.delete(idx);
@@ -674,16 +755,8 @@ export default function ComposeOcrPage() {
 
   return (
     <div className='min-h-screen bg-background text-foreground'>
-      <div className='container mx-auto p-6'>
+      <div className=' mx-auto p-6'>
         {/* ヘッダー */}
-        <div className='mb-6'>
-          <h1 className='text-3xl font-bold mb-2'>
-            レイアウト支援セグメント化
-          </h1>
-          <p className='text-muted-foreground'>
-            レイアウト解析 → 要素選択 → セグメント化 → OCR実行 → スキーマ生成
-          </p>
-        </div>
 
         {/* アップロードセクション */}
         <UploadSection
@@ -719,14 +792,38 @@ export default function ComposeOcrPage() {
         {/* メインコンテンツ */}
         {layoutOcr && imageUrls.length > 0 && (
           <>
-            {/* ページセレクター */}
-            <PageSelector
-              imageUrls={imageUrls}
-              selectedPage={selectedPage}
-              onChange={handlePageChange}
-            />
+            {/* ページセレクター & モデル選択 */}
+            <div className='mb-2 flex items-center gap-4 flex-wrap'>
+              <PageSelector
+                imageUrls={imageUrls}
+                selectedPage={selectedPage}
+                onChange={handlePageChange}
+              />
 
-            <div className='grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6'>
+              {/* モデル選択 */}
+              <div className='flex items-center gap-2'>
+                <label className='text-sm font-medium text-muted-foreground'>
+                  LLMモデル:
+                </label>
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  className='border border-input rounded-md px-3 py-1.5 text-sm bg-background'
+                  title={
+                    availableModels.find((m) => m.id === selectedModel)
+                      ?.description
+                  }
+                >
+                  {availableModels.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className='grid grid-cols-4  gap-6 mb-6'>
               {/* 左: プレビュー */}
               <div className='lg:col-span-2'>
                 <PreviewPanel
@@ -761,9 +858,9 @@ export default function ComposeOcrPage() {
                   onToggleBlock={toggleBlockSelection}
                   onToggleTable={toggleTableSelection}
                   onToggleFigure={toggleFigureSelection}
-                  onDeleteBlock={handleDeleteBlock}
-                  onDeleteTable={handleDeleteTable}
-                  onDeleteFigure={handleDeleteFigure}
+                  onToggleDeleteBlock={handleDeleteBlock}
+                  onToggleDeleteTable={handleDeleteTable}
+                  onToggleDeleteFigure={handleDeleteFigure}
                   onSelectAll={handleSelectAll}
                   onCreateAllIndividualSegments={
                     handleCreateAllIndividualSegments
@@ -774,11 +871,7 @@ export default function ComposeOcrPage() {
                   onOrderChange={handleSelectedOrderChange}
                 />
               </div>
-            </div>
-
-            {/* セグメント実行パネル */}
-            {file && (
-              <div className='mb-6'>
+              <div className='lg:col-span-1'>
                 <SegmentRunPanel
                   file={file}
                   segments={segments}
@@ -787,9 +880,10 @@ export default function ComposeOcrPage() {
                   onSegmentSelect={selectSegment}
                   selectedId={selectedSegmentId}
                   onSegmentDelete={deleteSegment}
+                  model={selectedModel}
                 />
               </div>
-            )}
+            </div>
           </>
         )}
 

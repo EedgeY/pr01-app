@@ -3,6 +3,10 @@
 import { useState } from 'react';
 import type { NormalizedOcr } from '@workspace/ai/src/ocr/types';
 import type { DetectedField } from '@workspace/ai';
+import {
+  availableModels,
+  defaultModel,
+} from '@workspace/ai/src/clients/models';
 import { SchemaExportButton } from './_components/SchemaExportButton';
 import { FieldSchemaDetectButton } from './_components/FieldSchemaDetectButton';
 import { FileUploadSection } from './_components/FileUploadSection';
@@ -32,6 +36,7 @@ export default function OcrViewerPage() {
   const [activeTab, setActiveTab] = useState<
     'blocks' | 'tables' | 'figures' | 'fields'
   >('blocks');
+  const [selectedModel, setSelectedModel] = useState<string>(defaultModel);
 
   // PDF preview hook
   const { imageUrls, generatePreview, clearPreview } = usePdfPreview();
@@ -200,6 +205,7 @@ export default function OcrViewerPage() {
                   onSegmentSelect={selectSegment}
                   selectedId={selectedSegmentId}
                   onSegmentDelete={deleteSegment}
+                  model={selectedModel}
                 />
               </div>
             </div>
@@ -211,7 +217,29 @@ export default function OcrViewerPage() {
             <div className='flex flex-col gap-4 mb-6'>
               <div className='flex items-center justify-between flex-wrap gap-3'>
                 <h2 className='text-xl font-bold'>結果を表示</h2>
-                <div className='flex items-center gap-3'>
+                <div className='flex items-center gap-3 flex-wrap'>
+                  {/* Model Selector */}
+                  <div className='flex items-center gap-2'>
+                    <label className='text-sm font-medium text-muted-foreground'>
+                      LLMモデル:
+                    </label>
+                    <select
+                      value={selectedModel}
+                      onChange={(e) => setSelectedModel(e.target.value)}
+                      className='border border-input rounded-md px-3 py-1.5 text-sm bg-background'
+                      title={
+                        availableModels.find((m) => m.id === selectedModel)
+                          ?.description
+                      }
+                    >
+                      {availableModels.map((model) => (
+                        <option key={model.id} value={model.id}>
+                          {model.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   <SchemaExportButton
                     blocks={ocr.pages[selectedPage]?.blocks || []}
                     disabled={!ocr.pages[selectedPage]?.blocks.length}
@@ -224,6 +252,7 @@ export default function OcrViewerPage() {
                       !ocr.pages[selectedPage] || !imageUrls[selectedPage]
                     }
                     onFieldsDetected={(fields) => setDetectedFields(fields)}
+                    model={selectedModel}
                   />
                   <div className='flex items-center gap-2'>
                     <label className='text-sm font-medium text-muted-foreground'>

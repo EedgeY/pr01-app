@@ -4,7 +4,7 @@
  * Analyzes OCR output to detect form fields in Japanese government documents
  */
 
-import { openai, defaultModel, withRetry } from '../clients/openrouter';
+import { openai, defaultModel, withRetry, type ModelId } from '../clients/openrouter';
 import {
   japaneseGovFormsSystemPrompt,
   japaneseGovFormsUserPromptTemplate,
@@ -85,6 +85,10 @@ export interface DetectFormFieldsOptions {
    * 指定された場合、textOcrとlayoutOcrの2ソースモードで検出を実行
    */
   layoutOcr?: NormalizedOcr;
+  /**
+   * 使用するLLMモデル（指定しない場合はdefaultModelを使用）
+   */
+  model?: ModelId;
 }
 
 /**
@@ -180,7 +184,11 @@ export async function detectFormFields(
     console.log('[FormFieldAgent] Including image for page', pageHint);
   }
 
+  // 使用するモデルを決定
+  const modelToUse = options?.model || defaultModel;
+  console.log('[FormFieldAgent] Using model:', modelToUse);
   console.log('[FormFieldAgent] Calling LLM...');
+  
   const result = await withRetry(async () => {
     // メッセージコンテンツを構築
     const userContent: Array<{
@@ -197,7 +205,7 @@ export async function detectFormFields(
     }
 
     const response = await openai.chat.completions.create({
-      model: defaultModel,
+      model: modelToUse,
       messages: [
         {
           role: 'system',

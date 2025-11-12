@@ -42,6 +42,7 @@ interface SegmentRunPanelProps {
   onSegmentSelect: (id: string | null) => void;
   selectedId: string | null;
   onSegmentDelete: (id: string) => void;
+  model?: string;
 }
 
 export function SegmentRunPanel({
@@ -52,6 +53,7 @@ export function SegmentRunPanel({
   onSegmentSelect,
   selectedId,
   onSegmentDelete,
+  model,
 }: SegmentRunPanelProps) {
   const [isRunning, setIsRunning] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -202,6 +204,7 @@ export function SegmentRunPanel({
               },
             },
           ],
+          model,
         };
         const response = await fetch('/api/ocr/segment-detect', {
           method: 'POST',
@@ -362,6 +365,7 @@ export function SegmentRunPanel({
         },
         body: JSON.stringify({
           segmentOcrResults,
+          model,
         }),
       });
 
@@ -476,9 +480,8 @@ export function SegmentRunPanel({
   };
 
   return (
-    <div className='bg-card text-card-foreground rounded-lg border p-5'>
+    <div className='bg-card text-card-foreground p-5'>
       <div className='flex items-center justify-between mb-4'>
-        <h3 className='text-lg font-semibold'>セグメント一覧</h3>
         <div className='flex gap-2'>
           <Button
             onClick={handleRunOcr}

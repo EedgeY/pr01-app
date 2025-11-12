@@ -14,6 +14,7 @@ import type {
   NormalizedOcr,
 } from '@workspace/ai/src/ocr/types';
 import type { PdfmeTextSchema } from '@workspace/ai/src/ocr';
+import type { ModelId } from '@workspace/ai/src/clients/openrouter';
 
 export const runtime = 'nodejs';
 
@@ -35,7 +36,7 @@ interface SegmentResult {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { segmentOcrResults } = body as {
+    const { segmentOcrResults, model } = body as {
       segmentOcrResults: Array<{
         segmentIndex: number;
         ocr: NormalizedOcr;
@@ -43,6 +44,7 @@ export async function POST(request: NextRequest) {
         pageIndex?: number;
         bboxNormalized?: NormalizedBBox;
       }>;
+      model?: ModelId;
     };
 
     if (
@@ -104,6 +106,7 @@ export async function POST(request: NextRequest) {
                   bboxNormalized && typeof pageIndex === 'number'
                     ? { pageIndex, bboxNormalized }
                     : undefined,
+                model, // モデル指定を渡す
               }),
             }
           );

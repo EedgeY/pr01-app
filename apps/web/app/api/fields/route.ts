@@ -11,6 +11,7 @@ import {
   sortFieldsByReadingOrder,
 } from '@workspace/ai';
 import type { NormalizedOcr } from '@workspace/ai';
+import type { ModelId } from '@workspace/ai/src/clients/openrouter';
 
 // Node runtime required
 export const runtime = 'nodejs';
@@ -19,10 +20,12 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const ocr: NormalizedOcr = body.ocr;
+    const model: ModelId | undefined = body.model;
 
     console.log('[Fields API] Received OCR data:', {
       pages: ocr?.pages?.length,
       totalBlocks: ocr?.pages?.reduce((sum, p) => sum + p.blocks.length, 0),
+      model,
     });
 
     if (!ocr || !ocr.pages || ocr.pages.length === 0) {
@@ -31,7 +34,7 @@ export async function POST(request: NextRequest) {
 
     // フィールド検出
     console.log('[Fields API] Starting field detection...');
-    const result = await detectFormFields(ocr);
+    const result = await detectFormFields(ocr, { model });
     console.log('[Fields API] Detection result:', {
       detectedFields: result.fields.length,
       metadata: result.metadata,

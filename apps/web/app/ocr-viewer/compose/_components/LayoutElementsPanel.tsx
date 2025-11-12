@@ -25,9 +25,9 @@ type LayoutElementsPanelProps = {
   onToggleBlock: (index: number) => void;
   onToggleTable: (index: number) => void;
   onToggleFigure: (index: number) => void;
-  onDeleteBlock: (index: number) => void;
-  onDeleteTable: (index: number) => void;
-  onDeleteFigure: (index: number) => void;
+  onToggleDeleteBlock: (index: number) => void;
+  onToggleDeleteTable: (index: number) => void;
+  onToggleDeleteFigure: (index: number) => void;
   onSelectAll: () => void;
   onCreateAllIndividualSegments: () => void;
   onCreateGroupSegment: () => void;
@@ -50,9 +50,9 @@ export function LayoutElementsPanel({
   onToggleBlock,
   onToggleTable,
   onToggleFigure,
-  onDeleteBlock,
-  onDeleteTable,
-  onDeleteFigure,
+  onToggleDeleteBlock,
+  onToggleDeleteTable,
+  onToggleDeleteFigure,
   onSelectAll,
   onCreateAllIndividualSegments,
   onCreateGroupSegment,
@@ -88,9 +88,8 @@ export function LayoutElementsPanel({
   };
 
   return (
-    <div className='bg-card rounded-lg border p-5'>
+    <div className='bg-card p-5'>
       <div className='flex flex-col gap-3 mb-4'>
-        <h3 className='text-lg font-semibold'>レイアウト要素</h3>
         <div className='flex flex-col gap-2'>
           <div className='flex gap-2'>
             <Button
@@ -122,66 +121,78 @@ export function LayoutElementsPanel({
           {currentPage.blocks.length > 0 && (
             <div>
               <h4 className='text-sm font-semibold mb-2 text-blue-600'>
-                Blocks (
-                {
-                  currentPage.blocks.filter((_, idx) => !deletedBlocks.has(idx))
-                    .length
-                }
-                )
+                Blocks ({currentPage.blocks.length})
               </h4>
               <div className='space-y-1'>
-                {currentPage.blocks.map(
-                  (block, idx) =>
-                    !deletedBlocks.has(idx) && (
-                      <div
-                        key={idx}
-                        className={`flex items-start gap-2 p-2 rounded transition-colors ${
-                          segmentedBlocks.has(idx)
-                            ? 'bg-green-50 border border-green-300'
-                            : selectedBlocks.has(idx)
-                              ? 'bg-blue-100 border border-blue-400'
-                              : 'hover:bg-muted border border-transparent'
-                        }`}
-                      >
-                        <input
-                          type='checkbox'
-                          checked={selectedBlocks.has(idx)}
-                          onChange={() => onToggleBlock(idx)}
-                          className='mt-1 cursor-pointer'
-                          disabled={segmentedBlocks.has(idx)}
-                        />
-                        <div className='flex-1 text-xs'>
-                          <div className='flex items-center gap-2'>
-                            <span className='font-medium'>Block {idx + 1}</span>
-                            {segmentedBlocks.has(idx) && (
-                              <span className='text-[10px] px-1.5 py-0.5 bg-green-600 text-white rounded'>
-                                セグメント化済
-                              </span>
-                            )}
-                          </div>
-                          <div className='text-muted-foreground truncate'>
-                            {block.text?.slice(0, 50)}
-                            {(block.text?.length || 0) > 50 && '...'}
-                          </div>
-                          <div className='text-muted-foreground'>
-                            [{block.bbox.x.toFixed(3)},{' '}
-                            {block.bbox.y.toFixed(3)}, {block.bbox.w.toFixed(3)}
-                            , {block.bbox.h.toFixed(3)}]
-                          </div>
+                {currentPage.blocks.map((block, idx) => {
+                  const isDeleted = deletedBlocks.has(idx);
+                  const isSegmented = segmentedBlocks.has(idx);
+                  return (
+                    <div
+                      key={idx}
+                      className={`flex items-start gap-2 p-2 rounded transition-colors ${
+                        isSegmented
+                          ? 'bg-green-50 border border-green-300'
+                          : selectedBlocks.has(idx)
+                            ? 'bg-blue-100 border border-blue-400'
+                            : 'hover:bg-muted border border-transparent'
+                      } ${isDeleted ? 'opacity-60' : ''}`}
+                    >
+                      <input
+                        type='checkbox'
+                        checked={selectedBlocks.has(idx)}
+                        onChange={() => onToggleBlock(idx)}
+                        className='mt-1 cursor-pointer'
+                        disabled={isSegmented || isDeleted}
+                      />
+                      <div className='flex-1 text-xs'>
+                        <div className='flex items-center gap-2'>
+                          <span
+                            className={`font-medium ${isDeleted ? 'line-through' : ''}`}
+                          >
+                            Block {idx + 1}
+                          </span>
+                          {isSegmented && (
+                            <span className='text-[10px] px-1.5 py-0.5 bg-green-600 text-white rounded'>
+                              セグメント化済
+                            </span>
+                          )}
+                          {isDeleted && (
+                            <span className='text-[10px] px-1.5 py-0.5 bg-red-600 text-white rounded'>
+                              削除済
+                            </span>
+                          )}
                         </div>
-                        <button
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onDeleteBlock(idx);
-                          }}
-                          className='text-red-600 hover:text-red-800 text-xs px-2 py-1'
-                          title='削除'
+                        <div
+                          className={`text-muted-foreground truncate ${isDeleted ? 'line-through' : ''}`}
                         >
-                          ✕
-                        </button>
+                          {block.text?.slice(0, 50)}
+                          {(block.text?.length || 0) > 50 && '...'}
+                        </div>
+                        <div
+                          className={`text-muted-foreground ${isDeleted ? 'line-through' : ''}`}
+                        >
+                          [{block.bbox.x.toFixed(3)}, {block.bbox.y.toFixed(3)},{' '}
+                          {block.bbox.w.toFixed(3)}, {block.bbox.h.toFixed(3)}]
+                        </div>
                       </div>
-                    )
-                )}
+                      <button
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onToggleDeleteBlock(idx);
+                        }}
+                        className={`text-xs px-2 py-1 ${
+                          isDeleted
+                            ? 'text-green-600 hover:text-green-800'
+                            : 'text-red-600 hover:text-red-800'
+                        }`}
+                        title={isDeleted ? '復元' : '削除'}
+                      >
+                        {isDeleted ? '↺' : '✕'}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -189,65 +200,77 @@ export function LayoutElementsPanel({
           {currentPage.tables && currentPage.tables.length > 0 && (
             <div>
               <h4 className='text-sm font-semibold mb-2 text-orange-600'>
-                Tables (
-                {
-                  currentPage.tables.filter((_, idx) => !deletedTables.has(idx))
-                    .length
-                }
-                )
+                Tables ({currentPage.tables?.length || 0})
               </h4>
               <div className='space-y-1'>
-                {currentPage.tables.map(
-                  (table, idx) =>
-                    !deletedTables.has(idx) && (
-                      <div
-                        key={idx}
-                        className={`flex items-start gap-2 p-2 rounded transition-colors ${
-                          segmentedTables.has(idx)
-                            ? 'bg-green-50 border border-green-300'
-                            : selectedTables.has(idx)
-                              ? 'bg-orange-100 border border-orange-400'
-                              : 'hover:bg-muted border border-transparent'
-                        }`}
-                      >
-                        <input
-                          type='checkbox'
-                          checked={selectedTables.has(idx)}
-                          onChange={() => onToggleTable(idx)}
-                          className='mt-1 cursor-pointer'
-                          disabled={segmentedTables.has(idx)}
-                        />
-                        <div className='flex-1 text-xs'>
-                          <div className='flex items-center gap-2'>
-                            <span className='font-medium'>Table {idx + 1}</span>
-                            {segmentedTables.has(idx) && (
-                              <span className='text-[10px] px-1.5 py-0.5 bg-green-600 text-white rounded'>
-                                セグメント化済
-                              </span>
-                            )}
-                          </div>
-                          <div className='text-muted-foreground'>
-                            {table.rows}行 × {table.cols}列
-                          </div>
-                          <div className='text-muted-foreground'>
-                            [{table.bbox.x.toFixed(3)},{' '}
-                            {table.bbox.y.toFixed(3)}, {table.bbox.w.toFixed(3)}
-                            , {table.bbox.h.toFixed(3)}]
-                          </div>
+                {currentPage.tables.map((table, idx) => {
+                  const isDeleted = deletedTables.has(idx);
+                  const isSegmented = segmentedTables.has(idx);
+                  return (
+                    <div
+                      key={idx}
+                      className={`flex items-start gap-2 p-2 rounded transition-colors ${
+                        isSegmented
+                          ? 'bg-green-50 border border-green-300'
+                          : selectedTables.has(idx)
+                            ? 'bg-orange-100 border border-orange-400'
+                            : 'hover:bg-muted border border-transparent'
+                      } ${isDeleted ? 'opacity-60' : ''}`}
+                    >
+                      <input
+                        type='checkbox'
+                        checked={selectedTables.has(idx)}
+                        onChange={() => onToggleTable(idx)}
+                        className='mt-1 cursor-pointer'
+                        disabled={isSegmented || isDeleted}
+                      />
+                      <div className='flex-1 text-xs'>
+                        <div className='flex items-center gap-2'>
+                          <span
+                            className={`font-medium ${isDeleted ? 'line-through' : ''}`}
+                          >
+                            Table {idx + 1}
+                          </span>
+                          {isSegmented && (
+                            <span className='text-[10px] px-1.5 py-0.5 bg-green-600 text-white rounded'>
+                              セグメント化済
+                            </span>
+                          )}
+                          {isDeleted && (
+                            <span className='text-[10px] px-1.5 py-0.5 bg-red-600 text-white rounded'>
+                              削除済
+                            </span>
+                          )}
                         </div>
-                        <button
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onDeleteTable(idx);
-                          }}
-                          className='text-red-600 hover:text-red-800 text-xs px-2 py-1'
-                          title='削除'
+                        <div
+                          className={`text-muted-foreground ${isDeleted ? 'line-through' : ''}`}
                         >
-                          ✕
-                        </button>
+                          {table.rows}行 × {table.cols}列
+                        </div>
+                        <div
+                          className={`text-muted-foreground ${isDeleted ? 'line-through' : ''}`}
+                        >
+                          [{table.bbox.x.toFixed(3)}, {table.bbox.y.toFixed(3)},{' '}
+                          {table.bbox.w.toFixed(3)}, {table.bbox.h.toFixed(3)}]
+                        </div>
                       </div>
-                    )
-                )}
+                      <button
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onToggleDeleteTable(idx);
+                        }}
+                        className={`text-xs px-2 py-1 ${
+                          isDeleted
+                            ? 'text-green-600 hover:text-green-800'
+                            : 'text-red-600 hover:text-red-800'
+                        }`}
+                        title={isDeleted ? '復元' : '削除'}
+                      >
+                        {isDeleted ? '↺' : '✕'}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -255,69 +278,78 @@ export function LayoutElementsPanel({
           {currentPage.figures && currentPage.figures.length > 0 && (
             <div>
               <h4 className='text-sm font-semibold mb-2 text-green-600'>
-                Figures (
-                {
-                  currentPage.figures.filter(
-                    (_, idx) => !deletedFigures.has(idx)
-                  ).length
-                }
-                )
+                Figures ({currentPage.figures?.length || 0})
               </h4>
               <div className='space-y-1'>
-                {currentPage.figures.map(
-                  (figure, idx) =>
-                    !deletedFigures.has(idx) && (
-                      <div
-                        key={idx}
-                        className={`flex items-start gap-2 p-2 rounded transition-colors ${
-                          segmentedFigures.has(idx)
-                            ? 'bg-green-50 border border-green-300'
-                            : selectedFigures.has(idx)
-                              ? 'bg-green-100 border border-green-400'
-                              : 'hover:bg-muted border border-transparent'
-                        }`}
-                      >
-                        <input
-                          type='checkbox'
-                          checked={selectedFigures.has(idx)}
-                          onChange={() => onToggleFigure(idx)}
-                          className='mt-1 cursor-pointer'
-                          disabled={segmentedFigures.has(idx)}
-                        />
-                        <div className='flex-1 text-xs'>
-                          <div className='flex items-center gap-2'>
-                            <span className='font-medium'>
-                              Figure {idx + 1}
+                {currentPage.figures.map((figure, idx) => {
+                  const isDeleted = deletedFigures.has(idx);
+                  const isSegmented = segmentedFigures.has(idx);
+                  return (
+                    <div
+                      key={idx}
+                      className={`flex items-start gap-2 p-2 rounded transition-colors ${
+                        isSegmented
+                          ? 'bg-green-50 border border-green-300'
+                          : selectedFigures.has(idx)
+                            ? 'bg-green-100 border border-green-400'
+                            : 'hover:bg-muted border border-transparent'
+                      } ${isDeleted ? 'opacity-60' : ''}`}
+                    >
+                      <input
+                        type='checkbox'
+                        checked={selectedFigures.has(idx)}
+                        onChange={() => onToggleFigure(idx)}
+                        className='mt-1 cursor-pointer'
+                        disabled={isSegmented || isDeleted}
+                      />
+                      <div className='flex-1 text-xs'>
+                        <div className='flex items-center gap-2'>
+                          <span
+                            className={`font-medium ${isDeleted ? 'line-through' : ''}`}
+                          >
+                            Figure {idx + 1}
+                          </span>
+                          {isSegmented && (
+                            <span className='text-[10px] px-1.5 py-0.5 bg-green-600 text-white rounded'>
+                              セグメント化済
                             </span>
-                            {segmentedFigures.has(idx) && (
-                              <span className='text-[10px] px-1.5 py-0.5 bg-green-600 text-white rounded'>
-                                セグメント化済
-                              </span>
-                            )}
-                          </div>
-                          <div className='text-muted-foreground'>
-                            {figure.figureType}
-                          </div>
-                          <div className='text-muted-foreground'>
-                            [{figure.bbox.x.toFixed(3)},{' '}
-                            {figure.bbox.y.toFixed(3)},{' '}
-                            {figure.bbox.w.toFixed(3)},{' '}
-                            {figure.bbox.h.toFixed(3)}]
-                          </div>
+                          )}
+                          {isDeleted && (
+                            <span className='text-[10px] px-1.5 py-0.5 bg-red-600 text-white rounded'>
+                              削除済
+                            </span>
+                          )}
                         </div>
-                        <button
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onDeleteFigure(idx);
-                          }}
-                          className='text-red-600 hover:text-red-800 text-xs px-2 py-1'
-                          title='削除'
+                        <div
+                          className={`text-muted-foreground ${isDeleted ? 'line-through' : ''}`}
                         >
-                          ✕
-                        </button>
+                          {figure.figureType}
+                        </div>
+                        <div
+                          className={`text-muted-foreground ${isDeleted ? 'line-through' : ''}`}
+                        >
+                          [{figure.bbox.x.toFixed(3)},{' '}
+                          {figure.bbox.y.toFixed(3)}, {figure.bbox.w.toFixed(3)}
+                          , {figure.bbox.h.toFixed(3)}]
+                        </div>
                       </div>
-                    )
-                )}
+                      <button
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onToggleDeleteFigure(idx);
+                        }}
+                        className={`text-xs px-2 py-1 ${
+                          isDeleted
+                            ? 'text-green-600 hover:text-green-800'
+                            : 'text-red-600 hover:text-red-800'
+                        }`}
+                        title={isDeleted ? '復元' : '削除'}
+                      >
+                        {isDeleted ? '↺' : '✕'}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

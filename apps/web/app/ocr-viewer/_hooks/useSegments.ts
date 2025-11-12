@@ -13,6 +13,13 @@ export interface Segment {
   ny: number; // normalized y [0..1]
   nw: number; // normalized width [0..1]
   nh: number; // normalized height [0..1]
+  // 関連付けられたレイアウト要素情報
+  // セグメント削除時にこれらの要素のセグメント化状態を解除するために使用
+  relatedElements?: {
+    blocks: number[]; // block indices
+    tables: number[]; // table indices
+    figures: number[]; // figure indices
+  };
 }
 
 export interface SegmentResult {
@@ -25,7 +32,7 @@ export interface SegmentResult {
   llmError?: string;
 }
 
-export function useSegments() {
+export function useSegments(onSegmentDelete?: (segment: Segment) => void) {
   const [segments, setSegments] = useState<Segment[]>([]);
   const [results, setResults] = useState<Map<string, SegmentResult>>(new Map());
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
@@ -42,6 +49,7 @@ export function useSegments() {
   }, []);
 
   const deleteSegment = useCallback((id: string) => {
+    const segmentToDelete = segments.find((seg) => seg.id === id);
     setSegments((prev) => prev.filter((seg) => seg.id !== id));
     setResults((prev) => {
       const newResults = new Map(prev);
@@ -51,7 +59,11 @@ export function useSegments() {
     if (selectedSegmentId === id) {
       setSelectedSegmentId(null);
     }
-  }, [selectedSegmentId]);
+    // セグメント削除コールバックを呼び出し
+    if (segmentToDelete && onSegmentDelete) {
+      onSegmentDelete(segmentToDelete);
+    }
+  }, [segments, selectedSegmentId, onSegmentDelete]);
 
   const selectSegment = useCallback((id: string | null) => {
     setSelectedSegmentId(id);

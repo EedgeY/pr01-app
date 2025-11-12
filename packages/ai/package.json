@@ -8,6 +8,8 @@
     "./agents": "./src/agents/index.ts",
     "./tools": "./src/tools/index.ts",
     "./clients": "./src/clients/openrouter.ts",
+    "./src/clients/models": "./src/clients/models.ts",
+    "./src/clients/openrouter": "./src/clients/openrouter.ts",
     "./src/ocr": "./src/ocr/index.ts",
     "./src/ocr/types": "./src/ocr/types.ts"
   },

@@ -45,14 +45,12 @@ export type PdfmeTextSchema = {
  * Convert a normalized bbox to pdfme TextSchema
  *
  * @param bbox - Normalized bbox [0..1] with top-left origin
- * @param content - Text content for the field
  * @param name - Field name/identifier
  * @param page - Page dimensions in mm (default: A4 portrait)
  * @returns pdfme TextSchema object with position/size in mm
  */
 export function bboxToTextSchema(
   bbox: { x: number; y: number; w: number; h: number },
-  content: string,
   name = 'field',
   page: { width: number; height: number } = A4_PORTRAIT_MM
 ): PdfmeTextSchema {
@@ -65,7 +63,7 @@ export function bboxToTextSchema(
   return {
     name,
     type: 'text',
-    content: content || 'Type Something...',
+    content: '',
     position: { x, y },
     width,
     height,
@@ -103,7 +101,7 @@ export function manyBboxesToTextSchemas(
   page: { width: number; height: number } = A4_PORTRAIT_MM
 ): PdfmeTextSchema[] {
   return items.map((it, i) =>
-    bboxToTextSchema(it.bbox, it.text, it.name ?? `field${i + 1}`, page)
+    bboxToTextSchema(it.bbox, it.name ?? `field${i + 1}`, page)
   );
 }
 
@@ -265,25 +263,8 @@ export function fieldsToTextSchemas(
     // セグメント化されたフィールドは各セグメントごとにスキーマ化
     if (field.segments && field.segments.length > 0) {
       for (const seg of field.segments) {
-        const segPlaceholder =
-          seg.placeholder ||
-          // セグメント名に応じた簡易プレースホルダー
-          (seg.name === 'zip3'
-            ? '000'
-            : seg.name === 'zip4'
-              ? '0000'
-              : seg.name === 'year'
-                ? '00'
-                : seg.name === 'month'
-                  ? '01'
-                  : seg.name === 'day'
-                    ? '01'
-                    : seg.name === 'era'
-                      ? '令和'
-                      : generatePlaceholder(field));
         const schema = bboxToTextSchema(
           seg.bboxNormalized,
-          segPlaceholder,
           `${field.name}_${seg.name}`,
           page
         );
@@ -296,10 +277,8 @@ export function fieldsToTextSchemas(
     }
 
     // 通常フィールド
-    const placeholder = generatePlaceholder(field);
     const schema = bboxToTextSchema(
       field.bboxNormalized,
-      placeholder,
       field.name || field.label,
       page
     );

@@ -52,7 +52,7 @@ export function PreviewPanel({
   }
 
   return (
-    <div className='bg-card rounded-lg border p-5'>
+    <div className='bg-card p-5'>
       <div className='flex items-center justify-between mb-4'>
         <h3 className='text-lg font-semibold'>プレビュー</h3>
         <div className='flex items-center gap-4 text-sm'>
