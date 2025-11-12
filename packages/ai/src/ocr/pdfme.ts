@@ -1,8 +1,221 @@
 /**
- * pdfme TextSchema conversion utilities
+ * pdfme スキーマ変換ユーティリティ（pdfme Schema Conversion）
  *
- * Converts normalized OCR bboxes to pdfme TextSchema format.
- * Assumes A4 portrait (210×297mm) by default.
+ * OCRで検出したバウンディングボックスやフィールド情報を、
+ * pdfmeライブラリで使用可能なTextSchemaフォーマットに変換します。
+ *
+ * ## 概要
+ *
+ * このモジュールは、OCR処理とPDF編集の橋渡しを行います。
+ *
+ * **処理フロー:**
+ * ```
+ * OCR検出結果                pdfme変換                PDF編集可能
+ * (正規化座標)      →     (mm単位座標)      →      (フォーム入力)
+ *
+ * NormalizedBBox    →    PdfmeTextSchema    →     入力可能なPDF
+ * { x: 0.1,              { position:              フィールド
+ *   y: 0.2,                { x: 21mm,
+ *   w: 0.3,                  y: 59.4mm },
+ *   h: 0.05 }              width: 63mm,
+ *                          height: 14.85mm }
+ * ```
+ *
+ * ## pdfme とは
+ *
+ * pdfme（https://pdfme.com/）は、TypeScript/JavaScriptでPDFを生成・編集できる
+ * オープンソースライブラリです。特にフォーム入力可能なPDFの作成に特化しています。
+ *
+ * **主な用途:**
+ * - OCR結果から入力可能なPDFテンプレートを生成
+ * - 検出したフィールド位置にテキストボックスを配置
+ * - ユーザーがブラウザ上でフォーム入力できるPDFを作成
+ *
+ * ## 座標系変換
+ *
+ * ### 正規化座標 → mm座標
+ *
+ * ```
+ * 正規化座標（DPI非依存、[0,1]範囲）
+ *     ↓ × ページサイズ（mm）
+ * 物理座標（mm単位）
+ *
+ * 例：A4縦（210×297mm）の場合
+ * x: 0.1 → 0.1 × 210mm = 21mm
+ * y: 0.2 → 0.2 × 297mm = 59.4mm
+ * w: 0.3 → 0.3 × 210mm = 63mm
+ * h: 0.05 → 0.05 × 297mm = 14.85mm
+ * ```
+ *
+ * ### サポートする用紙サイズ
+ *
+ * デフォルトはA4縦（210×297mm）ですが、任意のサイズを指定可能：
+ * - A4縦: 210×297mm（デフォルト）
+ * - A4横: 297×210mm
+ * - A3縦: 297×420mm
+ * - B5縦: 182×257mm
+ * - レター: 215.9×279.4mm
+ *
+ * ## PdfmeTextSchema フォーマット
+ *
+ * pdfmeが要求するスキーマの構造：
+ *
+ * ```typescript
+ * {
+ *   name: string;              // フィールド識別子（一意）
+ *   type: 'text';              // フィールドタイプ
+ *   content: string;           // デフォルト値またはプレースホルダー
+ *   position: { x, y };        // 左上座標（mm）
+ *   width: number;             // 幅（mm）
+ *   height: number;            // 高さ（mm）
+ *   fontSize: number;          // フォントサイズ（pt）
+ *   fontName: string;          // フォント名（'NotoSerifJP'等）
+ *   alignment: 'left'|...;     // 水平配置
+ *   verticalAlignment: ...;    // 垂直配置
+ *   dynamicFontSize: {...};    // 動的フォントサイズ調整
+ *   // ...その他のスタイル設定
+ * }
+ * ```
+ *
+ * ## 主な機能
+ *
+ * ### 基本変換
+ * - `bboxToTextSchema()`: 単一bboxをTextSchemaに変換
+ *   - 正規化座標をmm単位に変換
+ *   - デフォルトのスタイル設定を適用
+ *   - 日本語フォント（NotoSerifJP）を使用
+ *
+ * - `manyBboxesToTextSchemas()`: 複数bboxを一括変換
+ *   - 各bboxに一意な名前を自動付与（field1, field2...）
+ *   - オプションでカスタム名を指定可能
+ *
+ * ### フィールド検出結果の変換
+ * - `fieldsToTextSchemas()`: DetectedField配列をTextSchemaに変換
+ *   - フィールドタイプに応じた設定
+ *   - セグメント化されたフィールドに対応
+ *   - 必須フィールドのマーク付け
+ *
+ * ### プレースホルダー生成
+ * - `generatePlaceholder()`: フィールドに適したプレースホルダーを生成
+ *   - フィールドタイプに基づく適切な例示値
+ *   - ラベルテキストからの推測
+ *   - 日本の様式に準拠した例（住所、電話番号、日付など）
+ *
+ * ## プレースホルダーの例
+ *
+ * | フィールドタイプ | ラベル例 | プレースホルダー |
+ * |-----------------|---------|----------------|
+ * | 氏名 | 氏名、名前 | 山田 太郎 |
+ * | フリガナ | フリガナ | ヤマダ タロウ |
+ * | 住所 | 住所、所在地 | 東京都渋谷区○○1-2-3 |
+ * | 電話 | 電話番号 | 03-1234-5678 |
+ * | 携帯 | 携帯電話 | 090-1234-5678 |
+ * | メール | メールアドレス | example@example.com |
+ * | 郵便番号 | 郵便番号、〒 | 150-0001 |
+ * | 日付 | 日付、年月日 | 令和6年1月1日 |
+ * | 生年月日 | 生年月日 | 平成5年4月1日 |
+ * | 会社名 | 会社名 | 株式会社○○ |
+ * | 金額 | 金額、料金 | 10,000円 |
+ * | 印鑑 | 印 | 印 |
+ * | チェックボックス | - | ☑ |
+ *
+ * ## 使用例
+ *
+ * ```typescript
+ * // 1. 基本的なbbox変換
+ * const bbox = { x: 0.1, y: 0.2, w: 0.3, h: 0.05 };
+ * const schema = bboxToTextSchema(bbox, 'name_field');
+ * // → pdfmeで使用可能なTextSchemaオブジェクト
+ *
+ * // 2. OCR検出結果からのフォーム生成
+ * const ocrBlocks = normalizedOcr.pages[0].blocks;
+ * const schemas = manyBboxesToTextSchemas(
+ *   ocrBlocks.map((block, i) => ({
+ *     bbox: block.bbox,
+ *     text: block.text,
+ *     name: `field_${i}`
+ *   }))
+ * );
+ *
+ * // 3. AI検出フィールドからのテンプレート生成
+ * const detectedFields: DetectedField[] = await detectFormFields(ocr);
+ * const schemas = fieldsToTextSchemas(detectedFields);
+ *
+ * // 4. pdfmeでPDF生成
+ * import { generate } from '@pdfme/generator';
+ * const pdf = await generate({
+ *   template: {
+ *     schemas: [schemas],  // ← 変換したスキーマを使用
+ *     basePdf: originalPdfBuffer,
+ *   },
+ *   inputs: [{ name_field: '山田太郎' }],
+ * });
+ *
+ * // 5. カスタム用紙サイズ（A3横）
+ * const schema = bboxToTextSchema(
+ *   bbox,
+ *   'field1',
+ *   { width: 420, height: 297 }  // A3横
+ * );
+ * ```
+ *
+ * ## セグメント化フィールドの処理
+ *
+ * 長い入力欄が複数の下線セグメントに分かれている場合：
+ *
+ * ```
+ * 氏名：＿＿＿＿＿ ＿＿＿＿＿
+ *      ↑seg1     ↑seg2
+ * ```
+ *
+ * `fieldsToTextSchemas()`は自動的に各セグメントを個別のスキーマに変換：
+ * - `name_lastName` (セグメント1)
+ * - `name_firstName` (セグメント2)
+ *
+ * ## 動的フォントサイズ
+ *
+ * すべてのフィールドに動的フォントサイズ調整を設定：
+ *
+ * ```typescript
+ * dynamicFontSize: {
+ *   min: 6,          // 最小サイズ（pt）
+ *   max: 13,         // 最大サイズ（pt）
+ *   fit: 'horizontal' // 横幅に合わせる
+ * }
+ * ```
+ *
+ * これにより、長いテキストが入力されてもフィールドからはみ出さず、
+ * 自動的にフォントサイズが縮小されます。
+ *
+ * ## A4サイズの定数
+ *
+ * ```typescript
+ * export const A4_PORTRAIT_MM = { width: 210, height: 297 };
+ * ```
+ *
+ * よく使うA4縦サイズを定数として提供しています。
+ *
+ * ## 設計思想
+ *
+ * - **変換の単純化**: OCR座標からpdfme形式への直接変換を提供
+ * - **日本語対応**: 日本の様式（住所、日付表記など）に最適化
+ * - **柔軟性**: 任意の用紙サイズに対応
+ * - **UX重視**: 適切なプレースホルダーで入力しやすい
+ * - **オーバーフロー防止**: 動的フォントサイズで見栄えを保つ
+ *
+ * ## pdfmeとの連携
+ *
+ * このモジュールは以下のpdfmeパッケージと組み合わせて使用します：
+ *
+ * - `@pdfme/generator`: PDFを生成
+ * - `@pdfme/ui`: ブラウザ上でPDFを編集可能なUIを提供
+ * - `@pdfme/schemas`: テキスト以外のスキーマタイプ（画像、バーコードなど）
+ *
+ * ## 制限事項
+ *
+ * - 現在は`text`タイプのみサポート（チェックボックス、画像は別途実装が必要）
+ * - 回転（rotate）は常に0（将来的に対応可能）
+ * - 複数ページのPDFでは、ページごとにスキーマ配列が必要
  */
 
 /**
